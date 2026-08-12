@@ -1,0 +1,9 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "build": {
+    "buildCommand": "npm run build"
+  },
+  "deploy": {
+    "startCommand": "node dist/src/main.js"
+  }
+}
