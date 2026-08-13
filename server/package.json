@@ -5,13 +5,12 @@
   "main": "index.js",
   "scripts": {
   "build": "tsc -p tsconfig.json",
-  "start": "npm run build && node dist/main.js",
+  "start": "npm run build && node dist/src/main.js",
   "start:dev": "tsx watch src/main.ts"
 },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "module",
   "dependencies": {
     "@nestjs/common": "^11.1.29",
     "@nestjs/config": "^4.0.4",
