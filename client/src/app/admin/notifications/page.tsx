@@ -7,6 +7,7 @@ import {
   useMarkAllAsReadMutation,
 } from '@/store/services/notificationsApi';
 import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton';
+import { PageLoader } from '@/components/ui/PageLoader';
 import { Bell, CheckCheck, Flame, ShoppingCart, Info } from 'lucide-react';
 
 export default function AdminNotificationsPage() {
@@ -15,6 +16,8 @@ export default function AdminNotificationsPage() {
   });
   const [markAsRead] = useMarkAsReadMutation();
   const [markAllAsRead] = useMarkAllAsReadMutation();
+
+  if (isLoading) return <PageLoader message="Loading notifications..." />;
 
   return (
     <div className="flex flex-col gap-6 font-['Rubik'] max-w-4xl mx-auto">

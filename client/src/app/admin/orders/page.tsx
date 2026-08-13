@@ -8,6 +8,7 @@ import {
   useUpdateOrderStatusMutation,
 } from '@/store/services/ordersApi';
 import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton';
+import { PageLoader } from '@/components/ui/PageLoader';
 import { Eye, Clock, CheckCircle2, Truck, XCircle, Award, Package } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
@@ -69,6 +70,8 @@ export default function AdminOrdersPage() {
     acc[o.status] = (acc[o.status] || 0) + 1;
     return acc;
   }, {});
+
+  if (isLoading) return <PageLoader message="Loading orders..." />;
 
   return (
     <div className="flex flex-col gap-6 font-['Rubik']">

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ReduxProvider } from "@/store/provider";
+import { RouteLoader } from "@/components/ui/RouteLoader";
 import { Toaster } from "react-hot-toast";
 
 export const metadata: Metadata = {
@@ -10,13 +11,13 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
       <body className="antialiased bg-white text-black min-h-screen">
         <ReduxProvider>
+          {/* NProgress thin bar on every route change */}
+          <RouteLoader />
           {children}
           <Toaster position="top-right" reverseOrder={false} />
         </ReduxProvider>

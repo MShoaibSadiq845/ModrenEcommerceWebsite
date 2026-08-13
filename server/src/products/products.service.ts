@@ -213,8 +213,12 @@ export class ProductsService {
     const allReviews: any[] = [];
     for (const p of products) {
       for (const r of p.reviews) {
+        // Mongoose subdocument may or may not have toObject — use safe cast
+        const reviewObj = typeof (r as any).toObject === 'function'
+          ? (r as any).toObject()
+          : { ...r };
         allReviews.push({
-          ...r.toObject?.() ?? r,
+          ...reviewObj,
           productName: p.name,
           productRating: p.rating,
         });

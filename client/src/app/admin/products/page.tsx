@@ -9,6 +9,7 @@ import {
   useToggleSaleMutation,
 } from '@/store/services/productsApi';
 import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton';
+import { PageLoader } from '@/components/ui/PageLoader';
 import { PlusCircle, Trash2, Tag, Edit3, Award, Zap, X } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -69,6 +70,8 @@ export default function AdminProductsPage() {
     setSaleModalProduct(null);
     setSalePriceError('');
   };
+
+  if (isLoading) return <PageLoader message="Loading products..." />;
 
   return (
     <div className="flex flex-col gap-6 font-['Rubik']">

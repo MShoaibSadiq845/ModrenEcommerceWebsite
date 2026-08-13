@@ -10,7 +10,8 @@ import {
   useDeleteUserMutation,
 } from '@/store/services/usersApi';
 import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton';
-import { Award, Trash2, Shield, UserCheck, User as UserIcon, Crown } from 'lucide-react';
+import { PageLoader } from '@/components/ui/PageLoader';
+import { Award, Trash2, Shield, UserCheck, User as UserIcon, Crown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 const ROLE_STYLES: Record<string, { label: string; bg: string; text: string; icon: React.ReactNode }> = {
@@ -38,7 +39,13 @@ export default function AdminUsersPage() {
   const { user: currentUser } = useSelector((state: RootState) => state.auth);
   const isSuperAdmin = currentUser?.role === 'Super Admin';
 
-  const { data: users = [], isLoading } = useGetAllUsersQuery(undefined);
+  const [currentPage, setCurrentPage] = useState(1);
+  const limit = 20;
+
+  const { data, isLoading, isFetching } = useGetAllUsersQuery({ page: currentPage, limit });
+  const users = data?.users || [];
+  const pagination = data?.pagination;
+
   const [updateRole] = useUpdateUserRoleMutation();
   const [deleteUser] = useDeleteUserMutation();
 
@@ -73,13 +80,35 @@ export default function AdminUsersPage() {
     );
   }
 
+  if (isLoading && !users.length) return <PageLoader message="Loading users..." />;
+
+  // Generate page numbers for pagination
+  const getPageNumbers = () => {
+    if (!pagination) return [];
+    const pages: (number | '...')[] = [];
+    const { totalPages } = pagination;
+    
+    for (let i = 1; i <= totalPages; i++) {
+      if (
+        i === 1 ||
+        i === totalPages ||
+        (i >= currentPage - 1 && i <= currentPage + 1)
+      ) {
+        pages.push(i);
+      } else if (pages[pages.length - 1] !== '...') {
+        pages.push('...');
+      }
+    }
+    return pages;
+  };
+
   return (
     <div className="flex flex-col gap-6 font-['Rubik']">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
           <p className="text-xs text-gray-400 font-['Open_Sans']">
-            Manage user accounts, roles, and loyalty points — Super Admin only
+            {pagination ? `Showing ${((currentPage - 1) * limit) + 1}–${Math.min(currentPage * limit, pagination.total)} of ${pagination.total} users` : 'Manage user accounts, roles, and loyalty points'}
           </p>
         </div>
         <div className="text-xs bg-purple-50 border border-purple-200 text-purple-700 px-4 py-2 rounded-xl font-bold w-fit flex items-center gap-2">
@@ -99,102 +128,148 @@ export default function AdminUsersPage() {
         ))}
       </div>
 
-      {isLoading ? (
-        <TableSkeleton rows={6} />
+      {isLoading || isFetching ? (
+        <TableSkeleton rows={20} />
       ) : users.length === 0 ? (
         <div className="bg-white rounded-2xl p-12 text-center text-gray-400 text-xs font-semibold">
           No users found.
         </div>
       ) : (
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm overflow-x-auto">
-          <table className="w-full text-left text-xs font-['Open_Sans']">
-            <thead>
-              <tr className="border-b text-gray-400 font-bold uppercase tracking-wider">
-                <th className="pb-3">User</th>
-                <th className="pb-3">Email</th>
-                <th className="pb-3">Role</th>
-                <th className="pb-3 text-center">Loyalty Points</th>
-                <th className="pb-3">Joined</th>
-                <th className="pb-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 font-semibold text-gray-700">
-              {users.map((u: any) => {
-                const roleStyle = ROLE_STYLES[u.role] || ROLE_STYLES['User'];
-                const isSelf = u._id === currentUser?.id;
-                return (
-                  <tr key={u._id} className="hover:bg-gray-50 transition-all">
-                    <td className="py-4">
-                      <div className="flex items-center gap-3">
-                        {/* Avatar — real photo or coloured initial */}
-                        <div className="relative w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-gray-200">
-                          {u.avatar ? (
-                            <Image
-                              src={u.avatar}
-                              alt={u.name || ''}
-                              fill
-                              className="object-cover"
-                            />
-                          ) : (
-                            <div className={`w-full h-full flex items-center justify-center font-bold text-sm text-white
-                              ${['bg-blue-500','bg-green-500','bg-purple-500','bg-amber-500','bg-red-500','bg-indigo-500'][
-                                (u.name || '').charCodeAt(0) % 6
-                              ]}`}>
-                              {(u.name || '?').charAt(0).toUpperCase()}
-                            </div>
-                          )}
+        <>
+          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm overflow-x-auto">
+            <table className="w-full text-left text-xs font-['Open_Sans']">
+              <thead>
+                <tr className="border-b text-gray-400 font-bold uppercase tracking-wider">
+                  <th className="pb-3">User</th>
+                  <th className="pb-3">Email</th>
+                  <th className="pb-3">Role</th>
+                  <th className="pb-3 text-center">Loyalty Points</th>
+                  <th className="pb-3">Joined</th>
+                  <th className="pb-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 font-semibold text-gray-700">
+                {users.map((u: any) => {
+                  const roleStyle = ROLE_STYLES[u.role] || ROLE_STYLES['User'];
+                  const isSelf = u._id === currentUser?.id;
+                  return (
+                    <tr key={u._id} className="hover:bg-gray-50 transition-all">
+                      <td className="py-4">
+                        <div className="flex items-center gap-3">
+                          {/* Avatar — real photo or coloured initial */}
+                          <div className="relative w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-gray-200">
+                            {u.avatar ? (
+                              <Image
+                                src={u.avatar}
+                                alt={u.name || ''}
+                                fill
+                                className="object-cover"
+                              />
+                            ) : (
+                              <div className={`w-full h-full flex items-center justify-center font-bold text-sm text-white
+                                ${['bg-blue-500','bg-green-500','bg-purple-500','bg-amber-500','bg-red-500','bg-indigo-500'][
+                                  (u.name || '').charCodeAt(0) % 6
+                                ]}`}>
+                                {(u.name || '?').charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="font-bold text-gray-900">{u.name}</span>
+                            {isSelf && (
+                              <span className="text-[10px] text-green-600 font-bold">● You</span>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex flex-col">
-                          <span className="font-bold text-gray-900">{u.name}</span>
-                          {isSelf && (
-                            <span className="text-[10px] text-green-600 font-bold">● You</span>
-                          )}
+                      </td>
+                      <td className="py-4 text-gray-500">{u.email}</td>
+                      <td className="py-4">
+                        {isSelf ? (
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold ${roleStyle.bg} ${roleStyle.text}`}>
+                            {roleStyle.icon} {u.role}
+                          </span>
+                        ) : (
+                          <select
+                            value={u.role}
+                            onChange={(e) => handleRoleChange(u._id, e.target.value)}
+                            className="bg-gray-100 border border-transparent rounded-xl px-2.5 py-1.5 text-xs font-bold outline-none focus:border-black focus:bg-white transition-all"
+                          >
+                            <option value="User">User</option>
+                            <option value="Admin">Admin</option>
+                            <option value="Super Admin">Super Admin</option>
+                          </select>
+                        )}
+                      </td>
+                      <td className="py-4 text-center">
+                        <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-bold">
+                          <Award className="w-3 h-3" /> {u.loyaltyPoints || 0}
                         </div>
-                      </div>
-                    </td>
-                    <td className="py-4 text-gray-500">{u.email}</td>
-                    <td className="py-4">
-                      {isSelf ? (
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold ${roleStyle.bg} ${roleStyle.text}`}>
-                          {roleStyle.icon} {u.role}
-                        </span>
-                      ) : (
-                        <select
-                          value={u.role}
-                          onChange={(e) => handleRoleChange(u._id, e.target.value)}
-                          className="bg-gray-100 border border-transparent rounded-xl px-2.5 py-1.5 text-xs font-bold outline-none focus:border-black focus:bg-white transition-all"
-                        >
-                          <option value="User">User</option>
-                          <option value="Admin">Admin</option>
-                          <option value="Super Admin">Super Admin</option>
-                        </select>
-                      )}
-                    </td>
-                    <td className="py-4 text-center">
-                      <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-bold">
-                        <Award className="w-3 h-3" /> {u.loyaltyPoints || 0}
-                      </div>
-                    </td>
-                    <td className="py-4 text-gray-400">
-                      {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}
-                    </td>
-                    <td className="py-4 text-right">
-                      {!isSelf && (
-                        <button
-                          onClick={() => setConfirmDelete(u._id)}
-                          className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-all"
-                          title="Delete user"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      </td>
+                      <td className="py-4 text-gray-400">
+                        {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}
+                      </td>
+                      <td className="py-4 text-right">
+                        {!isSelf && (
+                          <button
+                            onClick={() => setConfirmDelete(u._id)}
+                            className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-all"
+                            title="Delete user"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          {pagination && pagination.totalPages > 1 && (
+            <div className="flex items-center justify-between border-t border-gray-200 pt-6 mt-2">
+              <button
+                disabled={!pagination.hasPrevPage || isFetching}
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                className="flex items-center gap-1.5 px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-black hover:text-white hover:border-black transition-all"
+              >
+                <ChevronLeft className="w-4 h-4" /> Previous
+              </button>
+
+              <div className="flex items-center gap-1">
+                {getPageNumbers().map((page, idx) =>
+                  page === '...' ? (
+                    <span key={`ellipsis-${idx}`} className="px-2 text-gray-400">
+                      ...
+                    </span>
+                  ) : (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page as number)}
+                      disabled={isFetching}
+                      className={`w-9 h-9 rounded-lg text-sm font-medium transition-all disabled:opacity-60 ${
+                        currentPage === page
+                          ? 'bg-black text-white'
+                          : 'hover:bg-gray-100 text-gray-700'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  )
+                )}
+              </div>
+
+              <button
+                disabled={!pagination.hasNextPage || isFetching}
+                onClick={() => setCurrentPage(prev => Math.min(pagination.totalPages, prev + 1))}
+                className="flex items-center gap-1.5 px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-black hover:text-white hover:border-black transition-all"
+              >
+                Next <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {/* Delete Confirmation Modal */}

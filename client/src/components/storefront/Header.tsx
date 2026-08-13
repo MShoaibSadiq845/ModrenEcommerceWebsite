@@ -1,14 +1,15 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '@/store/store';
 import { logout } from '@/store/slices/authSlice';
 import { useGetNotificationsQuery, useMarkAsReadMutation } from '@/store/services/notificationsApi';
 import { ProfileDrawer } from '@/components/ProfileDrawer';
+import { useDebounce } from '@/hooks/useDebounce';
 import {
   ShoppingCart, User as UserIcon, LogOut, Award,
   Search, X, ChevronDown, Bell, UserCog,
@@ -16,12 +17,14 @@ import {
 
 export function StorefrontHeader() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const dispatch = useDispatch();
   const { user, isAuthenticated } = useSelector((s: RootState) => s.auth);
   const cartItems = useSelector((s: RootState) => s.cart.items);
   const totalCartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
+  const debouncedSearch = useDebounce(searchQuery, 1000);
   const [showBanner, setShowBanner] = useState(true);
   const [showShopMenu, setShowShopMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -33,11 +36,24 @@ export function StorefrontHeader() {
   const [markAsRead] = useMarkAsReadMutation();
   const unreadCount = (notifications as any[]).filter((n) => !n.isRead).length;
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      router.push(`/shop?search=${encodeURIComponent(searchQuery.trim())}`);
-      setMobileMenuOpen(false);
+  // Auto-navigate to shop with debounced search after 1 second
+  useEffect(() => {
+    if (debouncedSearch.trim()) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('search', debouncedSearch.trim());
+      params.set('page', '1');
+      router.push(`/shop?${params.toString()}`);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch]);
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    if (window.location.pathname === '/shop') {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete('search');
+      params.set('page', '1');
+      router.replace(`/shop?${params.toString()}`);
     }
   };
 
@@ -104,19 +120,28 @@ export function StorefrontHeader() {
             <Link href="/shop" className="hover:text-black transition-colors">Brands</Link>
           </nav>
 
-          {/* Search */}
-          <form onSubmit={handleSearchSubmit} className="flex-1 max-w-[480px] hidden sm:block">
+          {/* Search - Desktop (auto-search after 1s of typing) */}
+          <div className="flex-1 max-w-[480px] hidden sm:block">
             <div className="relative">
               <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               <input
                 type="text"
-                placeholder="Search for products..."
+                placeholder="Search for products... (auto-search after 1s)"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-[#f0f0f0] rounded-full py-2.5 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-black/20 transition-all"
+                className="w-full bg-[#f0f0f0] rounded-full py-2.5 pl-10 pr-10 text-sm outline-none focus:ring-2 focus:ring-black/20 transition-all"
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={clearSearch}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
-          </form>
+          </div>
 
           {/* Actions */}
           <div className="flex items-center gap-2 sm:gap-3">
@@ -254,12 +279,26 @@ export function StorefrontHeader() {
         {/* ─── Mobile menu ─── */}
         {mobileMenuOpen && (
           <div className="lg:hidden w-full border-t border-gray-100 bg-white px-4 py-4 flex flex-col gap-4 animate-slide-up">
-            <form onSubmit={handleSearchSubmit} className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input type="text" placeholder="Search for products..." value={searchQuery}
+            {/* Mobile search - also debounced */}
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search products... (auto-search)"
+                value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-[#f0f0f0] rounded-full py-2.5 pl-9 pr-4 text-sm outline-none" />
-            </form>
+                className="w-full bg-[#f0f0f0] rounded-full py-2.5 pl-9 pr-10 text-sm outline-none"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={clearSearch}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
             <nav className="flex flex-col gap-1">
               {[{ href: '/shop', label: 'Shop' }, { href: '/shop?isOnSale=true', label: 'On Sale' },
                 { href: '/shop?sort=newest', label: 'New Arrivals' }, { href: '/shop', label: 'Brands' }]

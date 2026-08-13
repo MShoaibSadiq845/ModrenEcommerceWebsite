@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useGetAdminMetricsQuery } from '@/store/services/ordersApi';
 import { DashboardWidgetSkeleton } from '@/components/ui/skeletons/TableSkeleton';
+import { PageLoader } from '@/components/ui/PageLoader';
 import { ShoppingCart, PackageCheck, Clock, TrendingUp, ChevronRight } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -29,7 +30,7 @@ export default function AdminDashboardPage() {
     setMounted(true);
   }, []);
 
-  if (isLoading) return <DashboardWidgetSkeleton />;
+  if (isLoading) return <PageLoader message="Loading dashboard..." />;
 
   const {
     totalOrders = 0,

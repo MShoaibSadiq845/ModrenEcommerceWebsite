@@ -8,6 +8,7 @@ import { useGetProductsQuery, useGetAllReviewsQuery } from '@/store/services/pro
 import { useDispatch } from 'react-redux';
 import { apiSlice } from '@/store/services/api';
 import { ProductGridSkeleton } from '@/components/ui/skeletons/ProductCardSkeleton';
+import { PageLoader } from '@/components/ui/PageLoader';
 import { Award, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5000';
@@ -215,6 +216,10 @@ export default function StorefrontHomePage() {
     { label: 'PRADA',   src: '/images/57.png' },
     { label: 'Calvin Klein', src: '/images/58.png' },
   ];
+
+  if (loadingNew && loadingTop) {
+    return <PageLoader message="Loading storefront..." />;
+  }
 
   return (
     <div className="w-full flex flex-col items-center">

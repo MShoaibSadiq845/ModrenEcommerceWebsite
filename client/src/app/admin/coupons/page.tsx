@@ -9,6 +9,7 @@ import {
   useDeleteCouponMutation,
 } from '@/store/services/couponsApi';
 import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton';
+import { PageLoader } from '@/components/ui/PageLoader';
 import { Tag, PlusCircle, Trash2, ToggleLeft, ToggleRight, CheckCircle, XCircle, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
@@ -68,6 +69,8 @@ export default function AdminCouponsPage() {
       toast.error('Failed to delete coupon');
     }
   };
+
+  if (isLoading) return <PageLoader message="Loading coupons..." />;
 
   return (
     <div className="flex flex-col gap-6 font-['Rubik']">

@@ -5,6 +5,7 @@ import { useSelector } from 'react-redux';
 import { RootState } from '@/store/store';
 import { useGetMyOrdersQuery } from '@/store/services/ordersApi';
 import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton';
+import { PageLoader } from '@/components/ui/PageLoader';
 import { Award, Package, Clock, CheckCircle2, Truck, XCircle } from 'lucide-react';
 import Link from 'next/link';
 
@@ -25,6 +26,8 @@ export default function UserOrdersPage() {
       </div>
     );
   }
+
+  if (isLoading) return <PageLoader message="Loading your orders..." />;
 
   return (
     <div className="w-full max-w-[1240px] mx-auto px-4 py-8 flex flex-col gap-8 font-['Satoshi']">

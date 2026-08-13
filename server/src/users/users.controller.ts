@@ -1,7 +1,7 @@
 import {
   Controller, Get, Put, Delete, Post,
   Body, Param, UseGuards, Inject,
-  UseInterceptors, UploadedFile,
+  UseInterceptors, UploadedFile, Query,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthGuard } from '@nestjs/passport';
@@ -11,6 +11,7 @@ import { UserRole } from './schemas/user.schema';
 import { GetUser } from '../auth/get-user.decorator';
 import { UpdateShippingDto } from './dto/update-shipping.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { PaginationQueryDto } from './dto/pagination-query.dto';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @Controller('users')
@@ -25,8 +26,10 @@ export class UsersController {
 
   @Get()
   @UseGuards(RoleGuard(UserRole.ADMIN, UserRole.SUPER_ADMIN))
-  getAllUsers() {
-    return this.usersService.findAll();
+  getAllUsers(@Query() query: PaginationQueryDto) {
+    const page = query.page || 1;
+    const limit = query.limit || 20;
+    return this.usersService.findAllPaginated(page, limit);
   }
 
   // ── Any authenticated user ─────────────────────────────────────────────────

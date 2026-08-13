@@ -13,6 +13,34 @@ export class UsersService {
     return this.userModel.find().select('-password').sort({ createdAt: -1 }).exec();
   }
 
+  async findAllPaginated(page: number = 1, limit: number = 20) {
+    const skip = (page - 1) * limit;
+    const [users, total] = await Promise.all([
+      this.userModel
+        .find()
+        .select('-password')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.userModel.countDocuments().exec(),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      users,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    };
+  }
+
   async findById(id: string) {
     const user = await this.userModel.findById(id).select('-password').exec();
     if (!user) throw new NotFoundException('User not found');

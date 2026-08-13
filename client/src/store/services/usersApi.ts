@@ -16,11 +16,55 @@ export interface UpdateProfilePayload {
   avatar?: string;
 }
 
+export interface User {
+  _id: string;
+  name: string;
+  email: string;
+  role: string;
+  avatar?: string;
+  phone?: string;
+  loyaltyPoints?: number;
+  shippingAddress?: ShippingAddress;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaginationMeta {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+}
+
+export interface UsersResponse {
+  users: User[];
+  pagination: PaginationMeta;
+}
+
+export interface UsersQueryParams {
+  page?: number;
+  limit?: number;
+}
+
 export const usersApi = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
-    getAllUsers: builder.query({
-      query: () => '/users',
-      providesTags: ['User'],
+    getAllUsers: builder.query<UsersResponse, UsersQueryParams | void>({
+      query: (params) => {
+        const queryParams = new URLSearchParams();
+        if (params?.page) queryParams.append('page', String(params.page));
+        if (params?.limit) queryParams.append('limit', String(params.limit));
+        const queryString = queryParams.toString();
+        return `/users${queryString ? `?${queryString}` : ''}`;
+      },
+      providesTags: (result) =>
+        result
+          ? [
+              ...result.users.map(({ _id }) => ({ type: 'User' as const, id: _id })),
+              { type: 'User', id: 'LIST' },
+            ]
+          : [{ type: 'User', id: 'LIST' }],
     }),
 
     getUserById: builder.query({
