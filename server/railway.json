@@ -4,6 +4,6 @@
     "buildCommand": "npm run build"
   },
   "deploy": {
-    "startCommand": "node dist/src/main.js"
+    "startCommand": "node dist/main.js"
   }
 }
