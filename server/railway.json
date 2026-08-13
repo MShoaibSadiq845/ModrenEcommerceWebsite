@@ -1,9 +1,11 @@
 {
-  "$schema": "https://schema.railpack.com",
   "build": {
-    "buildCommand": "npm run build"
+    "builder": "NIXPACKS",
+    "buildCommand": "npm install && npm run build"
   },
   "deploy": {
-    "startCommand": "node dist/src/main.js"
+    "startCommand": "node dist/main.js",
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
   }
 }
