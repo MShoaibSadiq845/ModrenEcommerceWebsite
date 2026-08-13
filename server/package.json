@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
- "scripts": {
+  "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "npm run build && node dist/main.js",
     "start:dev": "tsx watch src/main.ts"
@@ -38,6 +38,7 @@
     "socket.io": "^4.8.3"
   },
   "devDependencies": {
+    "@nestjs/cli": "^11.0.24",
     "@types/multer": "^2.2.0",
     "@types/node": "^26.2.0",
     "ts-node": "^10.9.2",
