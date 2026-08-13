@@ -10,6 +10,8 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { RoleGuard } from '../auth/roles.guard';
 import { UserRole } from '../users/schemas/user.schema';
+import { GetUser } from '../auth/get-user.decorator';
+import { CreateReviewDto } from './dto/create-review.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
@@ -30,6 +32,12 @@ export class ProductsController {
   @Get('categories')
   getCategories() {
     return this.productsService.getCategories();
+  }
+
+  // All reviews across every product — for home page "Happy Customers" section
+  @Get('reviews/all')
+  getAllReviews(@Query('limit') limit?: string) {
+    return this.productsService.getAllReviews(limit ? Number(limit) : 30);
   }
 
   @Get(':id')
@@ -83,5 +91,21 @@ export class ProductsController {
       });
     }
     return product;
+  }
+
+  @Post(':id/reviews')
+  @UseGuards(AuthGuard('jwt'))
+  async createReview(
+    @Param('id') id: string,
+    @GetUser() user: any,
+    @Body() dto: CreateReviewDto,
+  ) {
+    return this.productsService.addReview(
+      id,
+      user.name || 'Verified Customer',
+      dto.rating,
+      dto.comment,
+      user._id?.toString(),
+    );
   }
 }

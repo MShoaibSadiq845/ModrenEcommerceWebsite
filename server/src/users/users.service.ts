@@ -2,6 +2,8 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User, UserDocument, UserRole } from './schemas/user.schema';
+import { UpdateShippingDto } from './dto/update-shipping.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @Injectable()
 export class UsersService {
@@ -22,10 +24,38 @@ export class UsersService {
     return { loyaltyPoints: user.loyaltyPoints };
   }
 
+  // Update name, phone, avatar URL
+  async updateProfile(id: string, dto: UpdateProfileDto) {
+    const updates: Record<string, any> = {};
+    if (dto.name !== undefined)   updates.name   = dto.name;
+    if (dto.phone !== undefined)  updates.phone  = dto.phone;
+    if (dto.avatar !== undefined) updates.avatar = dto.avatar;
+
+    const user = await this.userModel
+      .findByIdAndUpdate(id, updates, { new: true })
+      .select('-password')
+      .exec();
+    if (!user) throw new NotFoundException('User not found');
+    return user;
+  }
+
   async addLoyaltyPoints(id: string, points: number) {
     const user = await this.userModel
       .findByIdAndUpdate(id, { $inc: { loyaltyPoints: points } }, { new: true })
       .select('-password');
+    if (!user) throw new NotFoundException('User not found');
+    return user;
+  }
+
+  async updateShippingAddress(id: string, dto: UpdateShippingDto) {
+    const user = await this.userModel
+      .findByIdAndUpdate(
+        id,
+        { shippingAddress: { ...dto, state: dto.state || '' } },
+        { new: true },
+      )
+      .select('-password')
+      .exec();
     if (!user) throw new NotFoundException('User not found');
     return user;
   }

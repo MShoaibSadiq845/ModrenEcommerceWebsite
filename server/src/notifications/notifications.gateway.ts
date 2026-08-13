@@ -40,4 +40,8 @@ export class NotificationsGateway
       this.server.emit('order_notification', notification);
     }
   }
+
+  broadcastReview(productId: string, review: any, updatedProduct: any) {
+    this.server.emit('new_review', { productId, review, updatedProduct });
+  }
 }

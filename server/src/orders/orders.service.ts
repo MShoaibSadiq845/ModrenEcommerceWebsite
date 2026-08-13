@@ -92,6 +92,7 @@ export class OrdersService {
     const finalTotalAmount = finalSubtotal + deliveryFee;
 
     // Earn 1 point per $10 spent on final subtotal (before delivery fee)
+    // Rule: accumulate up to 1000 points → redeem for one free item worth up to $50
     const pointsEarned = Math.floor(finalSubtotal / 10);
 
     // Update user's loyalty points balance

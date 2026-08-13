@@ -1,60 +1,89 @@
 import {
-  Controller,
-  Get,
-  Put,
-  Delete,
-  Body,
-  Param,
-  UseGuards,
-  Inject,
+  Controller, Get, Put, Delete, Post,
+  Body, Param, UseGuards, Inject,
+  UseInterceptors, UploadedFile,
 } from '@nestjs/common';
-import { UsersService } from './users.service';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthGuard } from '@nestjs/passport';
-import { Roles } from '../auth/roles.decorator';
+import { UsersService } from './users.service';
+import { RoleGuard } from '../auth/roles.guard';
 import { UserRole } from './schemas/user.schema';
 import { GetUser } from '../auth/get-user.decorator';
+import { UpdateShippingDto } from './dto/update-shipping.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
-// All routes require a valid JWT
 @Controller('users')
 @UseGuards(AuthGuard('jwt'))
 export class UsersController {
   constructor(
     @Inject(UsersService) private readonly usersService: UsersService,
+    @Inject(CloudinaryService) private readonly cloudinaryService: CloudinaryService,
   ) {}
 
-  // Admin + Super Admin: fetch all users from DB
+  // ── Admin ──────────────────────────────────────────────────────────────────
+
   @Get()
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
-  async getAllUsers() {
+  @UseGuards(RoleGuard(UserRole.ADMIN, UserRole.SUPER_ADMIN))
+  getAllUsers() {
     return this.usersService.findAll();
   }
 
-  // Any authenticated user: get own loyalty points
+  // ── Any authenticated user ─────────────────────────────────────────────────
+
   @Get('loyalty-points')
-  async getLoyaltyPoints(@GetUser('_id') userId: string) {
+  getLoyaltyPoints(@GetUser('_id') userId: string) {
     return this.usersService.getLoyaltyPoints(userId);
   }
 
-  // Super Admin only: update a user's role
-  @Put(':id/role')
-  @Roles(UserRole.SUPER_ADMIN)
-  async updateUserRole(
-    @Param('id') id: string,
-    @Body('role') role: UserRole,
+  // Update display name, phone
+  @Put('profile')
+  updateProfile(
+    @GetUser('_id') userId: string,
+    @Body() dto: UpdateProfileDto,
   ) {
+    return this.usersService.updateProfile(userId, dto);
+  }
+
+  // Upload avatar image → Cloudinary → save URL to DB
+  @Post('avatar')
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadAvatar(
+    @GetUser('_id') userId: string,
+    @UploadedFile() file: any,
+  ) {
+    const result = await this.cloudinaryService.uploadFile(file);
+    const url = (result as any).secure_url;
+    return this.usersService.updateProfile(userId, { avatar: url });
+  }
+
+  // Save / update delivery address
+  @Put('shipping-address')
+  updateShipping(
+    @GetUser('_id') userId: string,
+    @Body() dto: UpdateShippingDto,
+  ) {
+    return this.usersService.updateShippingAddress(userId, dto);
+  }
+
+  // ── Super Admin ────────────────────────────────────────────────────────────
+
+  @Put(':id/role')
+  @UseGuards(RoleGuard(UserRole.SUPER_ADMIN))
+  updateUserRole(@Param('id') id: string, @Body('role') role: UserRole) {
     return this.usersService.updateRole(id, role);
   }
 
-  // Super Admin only: permanently delete a user
   @Delete(':id')
-  @Roles(UserRole.SUPER_ADMIN)
-  async deleteUser(@Param('id') id: string) {
+  @UseGuards(RoleGuard(UserRole.SUPER_ADMIN))
+  deleteUser(@Param('id') id: string) {
     return this.usersService.deleteUser(id);
   }
 
-  // Get any user by id
+  // ── Parameterised — keep LAST to avoid shadowing static routes ────────────
+
   @Get(':id')
-  async getUserById(@Param('id') id: string) {
+  getUserById(@Param('id') id: string) {
     return this.usersService.findById(id);
   }
 }

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Product, ProductDocument, PurchaseType } from './schemas/product.schema';
@@ -19,10 +19,13 @@ export interface ProductQuery {
   size?: string | string[];
 }
 
+import { NotificationsGateway } from '../notifications/notifications.gateway';
+
 @Injectable()
 export class ProductsService {
   constructor(
     @InjectModel(Product.name) private productModel: Model<ProductDocument>,
+    @Inject(NotificationsGateway) private readonly gateway: NotificationsGateway,
   ) {}
 
   private normalizeArrayParam(value?: string | string[]) {
@@ -166,7 +169,65 @@ export class ProductsService {
     return product;
   }
 
+  async addReview(
+    productId: string,
+    userName: string,
+    rating: number,
+    comment: string,
+    userId?: string,
+  ) {
+    const product = await this.productModel.findById(productId);
+    if (!product) throw new NotFoundException('Product not found');
+
+    const newReview: any = {
+      name: userName || 'Anonymous Customer',
+      rating: Number(rating),
+      text: comment,
+      verified: true,
+      user: userId,
+      createdAt: new Date(),
+    };
+
+    product.reviews.push(newReview);
+    product.numReviews = product.reviews.length;
+    const totalRatingSum = product.reviews.reduce((sum, item) => sum + item.rating, 0);
+    product.rating = Number((totalRatingSum / product.numReviews).toFixed(1));
+
+    await product.save();
+    this.gateway.broadcastReview(productId, newReview, product);
+    return product;
+  }
+
   async getCategories() {
     return this.productModel.distinct('category').exec();
+  }
+
+  // Fetch all reviews across all products — used on the home page
+  async getAllReviews(limit = 20) {
+    const products = await this.productModel
+      .find({ 'reviews.0': { $exists: true } })  // only products that have at least 1 review
+      .select('name reviews rating')
+      .exec();
+
+    // Flatten all reviews, attach product name & rating
+    const allReviews: any[] = [];
+    for (const p of products) {
+      for (const r of p.reviews) {
+        allReviews.push({
+          ...r.toObject?.() ?? r,
+          productName: p.name,
+          productRating: p.rating,
+        });
+      }
+    }
+
+    // Sort by most recent first, return top N
+    allReviews.sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateB - dateA;
+    });
+
+    return allReviews.slice(0, limit);
   }
 }

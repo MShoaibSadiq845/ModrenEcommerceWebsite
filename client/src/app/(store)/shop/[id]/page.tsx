@@ -5,12 +5,14 @@ import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useDispatch, useSelector } from 'react-redux';
-import { useGetProductByIdQuery, useGetProductsQuery } from '@/store/services/productsApi';
+import { useGetProductByIdQuery, useGetProductsQuery, useCreateReviewMutation } from '@/store/services/productsApi';
 import { useAddToCartBackendMutation } from '@/store/services/cartApi';
 import { addToCart } from '@/store/slices/cartSlice';
 import { ProductDetailSkeleton } from '@/components/ui/skeletons/ProductDetailSkeleton';
 import { RootState } from '@/store/store';
-import { Award, ChevronRight, Minus, Plus } from 'lucide-react';
+import { Award, ChevronRight, Minus, Plus, Star } from 'lucide-react';
+import { io } from 'socket.io-client';
+import toast from 'react-hot-toast';
 
 /* ─── Stars helper ─── */
 function Stars({ rating, size = 'sm' }: { rating: number; size?: 'sm' | 'lg' }) {
@@ -69,9 +71,29 @@ export default function ProductDetailPage() {
   const [quantity, setQuantity] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState<'currency' | 'points'>('currency');
   const [added, setAdded] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
   const [activeTab, setActiveTab] = useState<'details' | 'reviews' | 'faq'>('reviews');
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [newRating, setNewRating] = useState(0);
+  const [newComment, setNewComment] = useState('');
+  const [reviewError, setReviewError] = useState('');
+  const [sortOrder, setSortOrder] = useState<'latest' | 'oldest'>('latest');
 
   const [addToCartBackend] = useAddToCartBackendMutation();
+  const [createReview, { isLoading: isSubmittingReview }] = useCreateReviewMutation();
+
+  React.useEffect(() => {
+    const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5000');
+    socket.on('new_review', (data: { productId: string; review: any }) => {
+      if (data.productId === id) {
+        toast.success(`New review added by ${data.review.name}!`, { icon: '⭐' });
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [id]);
 
   React.useEffect(() => {
     if (product) {
@@ -99,84 +121,60 @@ export default function ProductDetailPage() {
   const isHybrid = product.purchaseType === 'hybrid';
   const isOutOfStock = product.stock <= 0;
   const images = product.images?.length > 0 ? product.images : ['/images/30.png', '/images/31.png', '/images/32.png'];
-  const sizes = ['Small', 'Medium', 'Large', 'X-Large'];
-  const colors = ['#4B5320', '#314F40', '#31344F'];
 
-  // Check if a color index is supported by ANY variant in the product family
-  const isColorSupported = (colorIndex: number) => {
-    if (!product || variants.length === 0) return colorIndex === 0;
-    return variants.some((v: any) => v.color === colorIndex.toString());
-  };
+  const sizes: string[] = (product.sizes && product.sizes.length > 0)
+    ? product.sizes
+    : product.size
+      ? [product.size]
+      : ['Small', 'Medium', 'Large', 'X-Large'];
 
-  // Check if a size is supported by ANY variant in the product family
-  const isSizeSupported = (sizeName: string) => {
-    if (!product || variants.length === 0) return sizeName === 'Large';
-    return variants.some((v: any) => v.size === sizeName);
-  };
+  const colors = ['#4B5320', '#314F40', '#4F46E5'];
 
   const handleColorClick = (colorIndex: number) => {
-    let matchingVariant = variants.find(
-      (v: any) => v.color === colorIndex.toString() && v.size === selectedSize
+    setSelectedColor(colorIndex);
+    const matchingVariant = variants.find(
+      (v: any) => v.color === colorIndex.toString()
     );
-    if (!matchingVariant) {
-      matchingVariant = variants.find(
-        (v: any) => v.color === colorIndex.toString()
-      );
-    }
-
-    if (matchingVariant) {
-      setSelectedColor(colorIndex);
-      if (matchingVariant._id !== product._id) {
-        router.push(`/shop/${matchingVariant._id}`);
-      }
-    } else {
-      alert("Not available at this time");
+    if (matchingVariant && matchingVariant._id !== product._id) {
+      router.push(`/shop/${matchingVariant._id}`);
     }
   };
 
   const handleSizeClick = (sizeName: string) => {
-    let matchingVariant = variants.find(
-      (v: any) => v.color === selectedColor.toString() && v.size === sizeName
+    setSelectedSize(sizeName);
+    const matchingVariant = variants.find(
+      (v: any) => v.size === sizeName && v._id !== product._id
     );
-    if (!matchingVariant) {
-      matchingVariant = variants.find(
-        (v: any) => v.size === sizeName
-      );
-    }
-
     if (matchingVariant) {
-      setSelectedSize(sizeName);
-      if (matchingVariant._id !== product._id) {
-        router.push(`/shop/${matchingVariant._id}`);
-      }
-    } else {
-      alert("Not available at this time");
+      router.push(`/shop/${matchingVariant._id}`);
     }
   };
 
   const handleAddToCart = async () => {
+    if (isAdding || isOutOfStock) return;
+    setIsAdding(true);
     const method = isLoyaltyOnly ? 'points' : paymentMethod;
-    
-    // Save to local Redux store
-    dispatch(addToCart({
-      id: product._id,
-      name: product.name,
-      price: effectivePrice,
-      salePrice: product.salePrice,
-      isOnSale: product.isOnSale,
-      pointsPrice: product.pointsPrice || 0,
-      purchaseType: product.purchaseType,
-      image: images[0],
-      quantity,
-      paymentMethod: method,
-      size: selectedSize,
-      color: selectedColor.toString(),
-    }));
 
-    // If token exists, sync with backend database
-    const rawToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    if (rawToken) {
-      try {
+    try {
+      // Save to local Redux store
+      dispatch(addToCart({
+        id: product._id,
+        name: product.name,
+        price: effectivePrice,
+        salePrice: product.salePrice,
+        isOnSale: product.isOnSale,
+        pointsPrice: product.pointsPrice || 0,
+        purchaseType: product.purchaseType,
+        image: images[0],
+        quantity,
+        paymentMethod: method,
+        size: selectedSize,
+        color: selectedColor.toString(),
+      }));
+
+      // If token exists, sync with backend database
+      const rawToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      if (rawToken) {
         await addToCartBackend({
           productId: product._id,
           name: product.name,
@@ -188,23 +186,71 @@ export default function ProductDetailPage() {
           color: selectedColor.toString(),
           image: images[0],
         }).unwrap();
-      } catch (err: any) {
-        console.error('Failed to sync cart item to backend database:', err);
       }
-    }
 
-    setAdded(true);
-    setTimeout(() => setAdded(false), 2500);
+      setAdded(true);
+      setTimeout(() => setAdded(false), 2500);
+    } catch (err: any) {
+      console.error('Failed to sync cart item to backend database:', err);
+      toast.error(err?.data?.message || 'Failed to add item to cart');
+    } finally {
+      setIsAdding(false);
+    }
   };
 
-  const reviews = [
+  const handleReviewSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setReviewError('');
+    if (!user) {
+      setReviewError('Please login to leave a review.');
+      return;
+    }
+    if (newRating === 0) {
+      setReviewError('Please select a star rating.');
+      return;
+    }
+    if (!newComment.trim()) {
+      setReviewError('Please enter a comment.');
+      return;
+    }
+    try {
+      await createReview({
+        id: product._id,
+        rating: newRating,
+        comment: newComment.trim(),
+      }).unwrap();
+      setShowReviewModal(false);
+      setNewComment('');
+      setNewRating(0);
+      toast.success('Review submitted successfully!');
+    } catch (err: any) {
+      setReviewError(err?.data?.message || 'Failed to submit review');
+    }
+  };
+
+  const defaultReviews = [
     { name: 'Samantha D.', rating: 4, verified: true, date: 'August 14, 2023', text: "I absolutely love this t-shirt! The design is unique and the fabric feels so comfortable. As a fellow designer, I appreciate the attention to detail. It's become my favorite 'go to' shirt." },
     { name: 'Alex M.', rating: 4, verified: true, date: 'August 15, 2023', text: "The t-shirt exceeded my expectations! The colors are vibrant and the print quality is top-notch. Being a UI/UX designer myself, I'm quite picky about aesthetics, and this t-shirt definitely gets a thumbs up from me." },
     { name: 'Ethan R.', rating: 4, verified: true, date: 'August 16, 2023', text: "This t-shirt is a must-have for anyone who appreciates good design. The minimalist yet stylish pattern caught my eye, and I'm glad I made the purchase!" },
-    { name: 'Olivia P.', rating: 5, verified: true, date: 'August 17, 2023', text: "As a UI/UX enthusiast, I value simplicity and functionality. This t-shirt not only represents it visually but also feels great to wear. It's evident that the designer poured a lot of creativity into making it." },
-    { name: 'Liam K.', rating: 4, verified: true, date: 'August 18, 2023', text: "This t-shirt is a fusion of comfort and creativity. The fabric is soft, and the design speaks volumes about the designer's skill. It's like wearing a piece of fashion history." },
-    { name: 'Ava H.', rating: 5, verified: true, date: 'August 19, 2023', text: "I'm not just wearing a shirt; I'm wearing a piece of design philosophy. The intricate details and the overall feel of the design make this shirt a conversation starter." },
   ];
+
+  const dbReviews = product?.reviews && product.reviews.length > 0
+    ? product.reviews.map((r: any) => ({
+        name: r.name,
+        rating: r.rating,
+        verified: r.verified !== false,
+        date: r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'Recently',
+        rawDate: r.createdAt ? new Date(r.createdAt).getTime() : Date.now(),
+        text: r.text,
+      }))
+    : [];
+
+  const rawReviews = [...dbReviews, ...defaultReviews.map((r: any, idx: number) => ({ ...r, rawDate: idx }))];
+
+  const displayReviews = [...rawReviews].sort((a: any, b: any) => {
+    if (sortOrder === 'latest') return b.rawDate - a.rawDate;
+    return a.rawDate - b.rawDate;
+  });
 
   return (
     <div className="w-full font-['Satoshi']">
@@ -281,22 +327,20 @@ export default function ProductDetailPage() {
 
             {/* Color selection */}
             <div className="pb-4 border-b border-gray-200">
-              <p className="text-xs text-gray-600 font-medium mb-3">Select Colors</p>
+              <p className="text-xs text-gray-900 font-bold mb-3">Select Colors</p>
               <div className="flex items-center gap-3">
                 {colors.map((c, i) => {
-                  const supported = isColorSupported(i);
                   return (
                     <button
                       key={c}
                       onClick={() => handleColorClick(i)}
                       className={`w-9 h-9 rounded-full border-2 transition-all flex items-center justify-center ${
-                        selectedColor === i ? 'border-black' : 'border-transparent'
-                      } ${!supported ? 'opacity-30' : ''}`}
+                        selectedColor === i ? 'border-black ring-2 ring-black/20 scale-105' : 'border-gray-300 hover:border-gray-500'
+                      }`}
                       style={{ backgroundColor: c }}
-                      title={!supported ? 'Not available at this time' : ''}
                     >
                       {selectedColor === i && (
-                        <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg className="w-4 h-4 text-white drop-shadow" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                         </svg>
                       )}
@@ -308,19 +352,19 @@ export default function ProductDetailPage() {
 
             {/* Size selection */}
             <div className="pb-5 border-b border-gray-200">
-              <p className="text-xs text-gray-600 font-medium mb-3">Choose Size</p>
+              <p className="text-xs text-gray-900 font-bold mb-3">Choose Size</p>
               <div className="flex flex-wrap gap-2">
                 {sizes.map((sz) => {
-                  const supported = isSizeSupported(sz);
+                  const isSelected = selectedSize === sz;
                   return (
                     <button
                       key={sz}
                       onClick={() => handleSizeClick(sz)}
-                      className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all ${
-                        selectedSize === sz
-                          ? 'bg-black text-white'
-                          : 'bg-[#f0f0f0] text-gray-700 hover:bg-gray-200'
-                      } ${!supported ? 'opacity-35' : ''}`}
+                      className={`px-5 py-2.5 rounded-full text-sm font-bold border-2 transition-all duration-300 ${
+                        isSelected
+                          ? 'bg-black text-white border-black shadow-md scale-105'
+                          : 'bg-[#f0f0f0] text-gray-800 border-transparent hover:bg-gray-200 hover:text-black'
+                      }`}
                     >
                       {sz}
                     </button>
@@ -334,17 +378,13 @@ export default function ProductDetailPage() {
               <div className="flex gap-3 pb-4 border-b border-gray-200">
                 <button
                   onClick={() => setPaymentMethod('currency')}
-                  className={`flex-1 py-2.5 px-4 rounded-xl border text-sm font-bold transition-all ${
-                    paymentMethod === 'currency' ? 'bg-black text-white border-black' : 'bg-white text-gray-700 border-gray-300'
-                  }`}
+                  className={`flex-1 py-2.5 px-4 rounded-xl border text-sm font-bold transition-all ${paymentMethod === 'currency' ? 'bg-black text-white border-black' : 'bg-white text-gray-700 border-gray-300'}`}
                 >
                   Pay ${effectivePrice}
                 </button>
                 <button
                   onClick={() => setPaymentMethod('points')}
-                  className={`flex-1 py-2.5 px-4 rounded-xl border text-sm font-bold transition-all ${
-                    paymentMethod === 'points' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-700 border-gray-300'
-                  }`}
+                  className={`flex-1 py-2.5 px-4 rounded-xl border text-sm font-bold transition-all ${paymentMethod === 'points' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-700 border-gray-300'}`}
                 >
                   <Award className="w-4 h-4 inline mr-1" />{product.pointsPrice} pts
                 </button>
@@ -364,17 +404,35 @@ export default function ProductDetailPage() {
               </div>
 
               <button
-                disabled={isOutOfStock}
+                disabled={isOutOfStock || isAdding || added}
                 onClick={handleAddToCart}
-                className={`flex-1 py-3.5 rounded-full text-sm font-bold transition-all disabled:opacity-50 ${
-                  isLoyaltyOnly
-                    ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                className={`flex-1 py-3.5 rounded-full text-sm font-bold transition-all duration-300 flex items-center justify-center gap-2 disabled:cursor-not-allowed ${
+                  isOutOfStock
+                    ? 'bg-gray-300 text-gray-500'
                     : added
-                    ? 'bg-green-600 text-white'
-                    : 'bg-black hover:bg-gray-800 text-white'
+                    ? 'bg-green-600 text-white scale-[1.02] shadow-lg'
+                    : isAdding
+                    ? 'bg-gray-800 text-white opacity-90'
+                    : isLoyaltyOnly
+                    ? 'bg-amber-500 hover:bg-amber-600 active:scale-95 text-white shadow-md'
+                    : 'bg-black hover:bg-gray-800 active:scale-95 text-white shadow-md'
                 }`}
               >
-                {added ? '✓ Added to Cart!' : isLoyaltyOnly ? 'Buy with Points' : 'Add to Cart'}
+                {isAdding ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Adding...
+                  </>
+                ) : added ? (
+                  '✓ Added to Cart!'
+                ) : isLoyaltyOnly ? (
+                  'Buy with Points'
+                ) : (
+                  'Add to Cart'
+                )}
               </button>
             </div>
 
@@ -398,9 +456,7 @@ export default function ProductDetailPage() {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`px-8 py-4 text-sm font-medium transition-all border-b-2 -mb-px ${
-                  activeTab === tab.id
-                    ? 'border-black text-black font-bold'
-                    : 'border-transparent text-gray-500 hover:text-black'
+                  activeTab === tab.id ? 'border-black text-black font-bold' : 'border-transparent text-gray-500 hover:text-black'
                 }`}
               >
                 {tab.label}
@@ -412,33 +468,104 @@ export default function ProductDetailPage() {
           {activeTab === 'reviews' && (
             <div className="py-8 flex flex-col gap-6">
               <div className="flex items-center justify-between">
-                <p className="text-sm font-bold text-black">All Reviews <span className="text-gray-400 font-normal">({reviews.length})</span></p>
+                <p className="text-sm font-bold text-black">
+                  All Reviews <span className="text-gray-400 font-normal">({displayReviews.length})</span>
+                </p>
                 <div className="flex items-center gap-3">
-                  <button className="px-4 py-2 border border-gray-200 rounded-full text-xs font-medium hover:bg-gray-50">
-                    Latest
+                  <button
+                    onClick={() => setSortOrder(sortOrder === 'latest' ? 'oldest' : 'latest')}
+                    className={`px-4 py-2 border rounded-full text-xs font-semibold transition-all ${
+                      sortOrder === 'latest' ? 'bg-gray-100 border-gray-300 text-black' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    {sortOrder === 'latest' ? 'Latest ↓' : 'Oldest ↑'}
                   </button>
-                  <button className="px-5 py-2 bg-black text-white rounded-full text-xs font-bold">
+                  <button
+                    onClick={() => {
+                      setReviewError('');
+                      setShowReviewModal(true);
+                    }}
+                    className="px-5 py-2 bg-black text-white rounded-full text-xs font-bold hover:bg-gray-800 transition-all"
+                  >
                     Write a Review
                   </button>
                 </div>
               </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {reviews.map((r) => (
-                  <div key={r.name} className="border border-gray-200 rounded-[20px] p-6 flex flex-col gap-3">
+                {displayReviews.map((r: any, idx: number) => (
+                  <div key={idx} className="border border-gray-200 rounded-[20px] p-6 flex flex-col gap-3">
                     <Stars rating={r.rating} />
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-sm text-black">{r.name}</span>
-                      {r.verified && <span className="text-green-500 text-base">✓</span>}
+                      {r.verified && <span className="text-green-500 text-base font-bold">✓</span>}
                     </div>
                     <p className="text-sm text-gray-600 leading-relaxed">{r.text}</p>
                     <p className="text-xs text-gray-400">Posted on {r.date}</p>
                   </div>
                 ))}
               </div>
-              <div className="text-center mt-2">
-                <button className="px-10 py-3 border border-gray-200 rounded-full text-sm font-medium hover:bg-black hover:text-white transition-all">
-                  Load More Reviews
-                </button>
+            </div>
+          )}
+
+          {/* ─── Write Review Modal ─── */}
+          {showReviewModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+              <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl flex flex-col gap-5">
+                <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                  <h3 className="text-xl font-bold text-black">Write a Review</h3>
+                  <button onClick={() => setShowReviewModal(false)} className="text-gray-400 hover:text-black font-bold text-lg">
+                    ✕
+                  </button>
+                </div>
+
+                <form onSubmit={handleReviewSubmit} className="flex flex-col gap-4">
+                  {reviewError && (
+                    <div className="p-3 bg-red-50 text-red-600 rounded-xl text-xs font-medium">
+                      {reviewError}
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-2">Rating</label>
+                    <div className="flex items-center gap-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button key={star} type="button" onClick={() => setNewRating(star)} className="p-1 focus:outline-none">
+                          <Star className={`w-7 h-7 ${star <= newRating ? 'text-amber-400 fill-amber-400' : 'text-gray-300'}`} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-2">Your Review / Comment</label>
+                    <textarea
+                      rows={4}
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      placeholder="Tell us what you liked or disliked about this product..."
+                      className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:border-black"
+                      required
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowReviewModal(false)}
+                      className="flex-1 py-3 border border-gray-200 rounded-full text-xs font-bold text-gray-600 hover:bg-gray-100"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmittingReview}
+                      className="flex-1 py-3 bg-black hover:bg-gray-800 text-white rounded-full text-xs font-bold disabled:opacity-50"
+                    >
+                      {isSubmittingReview ? 'Submitting...' : 'Submit Review'}
+                    </button>
+                  </div>
+                </form>
               </div>
             </div>
           )}

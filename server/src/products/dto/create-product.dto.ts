@@ -1,4 +1,7 @@
-import { IsNotEmpty, IsNumber, IsOptional, IsString, IsEnum, IsBoolean, IsArray, Min } from 'class-validator';
+import {
+  IsNotEmpty, IsNumber, IsOptional, IsString,
+  IsEnum, IsBoolean, IsArray, Min, Max,
+} from 'class-validator';
 import { PurchaseType } from '../schemas/product.schema';
 
 export class CreateProductDto {
@@ -43,6 +46,7 @@ export class CreateProductDto {
   @IsString()
   color?: string;
 
+  // Primary size (first selected)
   @IsOptional()
   @IsString()
   size?: string;
@@ -63,4 +67,11 @@ export class CreateProductDto {
   @IsOptional()
   @IsArray()
   tags?: string[];
+
+  // Admin-specified rating (1–5)
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(5)
+  rating?: number;
 }

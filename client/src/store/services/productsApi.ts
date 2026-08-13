@@ -55,6 +55,20 @@ export const productsApi = apiSlice.injectEndpoints({
         formData: true,          // tells RTK Query: skip JSON serialisation, send as multipart
       }),
     }),
+    createReview: builder.mutation({
+      query: ({ id, rating, comment }) => ({
+        url: `/products/${id}/reviews`,
+        method: 'POST',
+        body: { rating, comment },
+      }),
+      invalidatesTags: (result, error, { id }) => ['Product', { type: 'Product', id }],
+    }),
+
+    // All reviews from all products — for the home page "Happy Customers" section
+    getAllReviews: builder.query({
+      query: (limit = 30) => `/products/reviews/all?limit=${limit}`,
+      providesTags: ['Product'],
+    }),
   }),
 });
 
@@ -67,4 +81,6 @@ export const {
   useDeleteProductMutation,
   useToggleSaleMutation,
   useUploadProductImageMutation,
+  useCreateReviewMutation,
+  useGetAllReviewsQuery,
 } = productsApi;

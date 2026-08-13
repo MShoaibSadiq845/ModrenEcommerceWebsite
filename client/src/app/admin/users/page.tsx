@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useSelector } from 'react-redux';
+import Image from 'next/image';
 import { RootState } from '@/store/store';
 import {
   useGetAllUsersQuery,
@@ -125,8 +126,23 @@ export default function AdminUsersPage() {
                   <tr key={u._id} className="hover:bg-gray-50 transition-all">
                     <td className="py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-gray-100 text-gray-700 flex items-center justify-center font-bold text-sm">
-                          {u.name?.charAt(0).toUpperCase() || '?'}
+                        {/* Avatar — real photo or coloured initial */}
+                        <div className="relative w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-gray-200">
+                          {u.avatar ? (
+                            <Image
+                              src={u.avatar}
+                              alt={u.name || ''}
+                              fill
+                              className="object-cover"
+                            />
+                          ) : (
+                            <div className={`w-full h-full flex items-center justify-center font-bold text-sm text-white
+                              ${['bg-blue-500','bg-green-500','bg-purple-500','bg-amber-500','bg-red-500','bg-indigo-500'][
+                                (u.name || '').charCodeAt(0) % 6
+                              ]}`}>
+                              {(u.name || '?').charAt(0).toUpperCase()}
+                            </div>
+                          )}
                         </div>
                         <div className="flex flex-col">
                           <span className="font-bold text-gray-900">{u.name}</span>

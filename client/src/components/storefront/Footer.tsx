@@ -58,10 +58,10 @@ export function StorefrontFooter() {
             {/* Social icons */}
             <div className="flex items-center gap-3 mt-1">
               {[
-                { img: '/images/20.png', alt: 'Twitter', href: '#' },
+                { img: '/images/21.png', alt: 'Twitter', href: '#' },
                 { img: '/images/22.png', alt: 'Facebook', href: '#' },
-                { img: '/images/21.png', alt: 'Instagram', href: '#' },
-                { img: '/images/23.png', alt: 'GitHub', href: '#' },
+                { img: '/images/23.png', alt: 'Instagram', href: '#' },
+                { img: '/images/89.png', alt: 'GitHub', href: '#' },
               ].map(({ img, alt, href }) => (
                 <Link key={alt} href={href} aria-label={alt}
                   className="w-8 h-8 rounded-full border border-gray-300 bg-white flex items-center justify-center hover:border-black transition-colors overflow-hidden"
@@ -124,7 +124,7 @@ export function StorefrontFooter() {
               { src: '/images/28.png', alt: 'Apple Pay' },
               { src: '/images/29.png', alt: 'Google Pay' },
             ].map(({ src, alt }) => (
-              <div key={alt} className="h-7 px-2 bg-white rounded border border-gray-200 flex items-center justify-center">
+              <div key={alt} className="h-7 px-2  flex items-center justify-center">
                 <Image src={src} width={38} height={24} alt={alt} className="object-contain" />
               </div>
             ))}

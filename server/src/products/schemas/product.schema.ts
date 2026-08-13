@@ -10,6 +10,29 @@ export enum PurchaseType {
 }
 
 @Schema({ timestamps: true })
+export class Review {
+  @Prop({ type: String, required: true })
+  name: string;
+
+  @Prop({ type: Number, required: true, min: 1, max: 5 })
+  rating: number;
+
+  @Prop({ type: String, required: true })
+  text: string;
+
+  @Prop({ type: Boolean, default: true })
+  verified: boolean;
+
+  @Prop({ type: String, required: false })
+  user?: string;
+
+  @Prop({ type: Date, default: Date.now })
+  createdAt: Date;
+}
+
+export const ReviewSchema = SchemaFactory.createForClass(Review);
+
+@Schema({ timestamps: true })
 export class Product {
   @Prop({ type: String, required: true })
   name: string;
@@ -56,10 +79,13 @@ export class Product {
   @Prop({ type: [String], default: [] })
   tags: string[];
 
+  @Prop({ type: [ReviewSchema], default: [] })
+  reviews: Review[];
+
   @Prop({ type: Number, default: 4.5 })
   rating: number;
 
-  @Prop({ type: Number, default: 12 })
+  @Prop({ type: Number, default: 0 })
   numReviews: number;
 
   @Prop({ type: Number, default: 0 })

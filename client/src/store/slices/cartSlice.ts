@@ -81,14 +81,17 @@ const cartSlice = createSlice({
       state.items = state.items.filter((_, idx) => idx !== action.payload);
       saveCartToStorage(state.items);
     },
-    applyPromoCode: (state, action: PayloadAction<string>) => {
-      if (action.payload.toUpperCase() === 'SHOP20') {
-        state.promoCode = 'SHOP20';
-        state.discountPercentage = 20;
-      } else {
-        state.promoCode = null;
-        state.discountPercentage = 0;
-      }
+    // Accepts { code, discountPercentage } from the DB validation result
+    applyPromoCode: (
+      state,
+      action: PayloadAction<{ code: string; discountPercentage: number }>,
+    ) => {
+      state.promoCode = action.payload.code.toUpperCase();
+      state.discountPercentage = action.payload.discountPercentage;
+    },
+    removePromoCode: (state) => {
+      state.promoCode = null;
+      state.discountPercentage = 0;
     },
     clearCart: (state) => {
       state.items = [];
@@ -104,6 +107,7 @@ export const {
   updateQuantity,
   removeFromCart,
   applyPromoCode,
+  removePromoCode,
   clearCart,
 } = cartSlice.actions;
 export default cartSlice.reducer;
