@@ -1,0 +1,87 @@
+# ==========================================
+# .dockerignore - Exclude files from Docker context
+# ==========================================
+
+# Dependencies
+node_modules
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Build output
+dist
+build
+.next
+out
+
+# Cache and temporary files
+.cache
+.temp
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+
+# TypeScript incremental build info
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# Environment files (these should be set in Railway)
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env*.local
+
+# IDE and editor files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings
+.metadata
+
+# Git files
+.git
+.gitignore
+.gitattributes
+.github
+
+# Testing
+coverage
+.nyc_output
+test-results
+*.test.ts
+*.spec.ts
+__tests__
+__mocks__
+
+# Documentation
+README.md
+CHANGELOG.md
+CONTRIBUTING.md
+LICENSE
+docs
+*.md
+
+# Docker files (don't copy Docker-related files into the image)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Deployment configs (not needed in container)
+.railway
+railway.json
+nixpacks.toml
+.npmrc
+
+# Misc
+*.bak
+*.old
+*.orig
