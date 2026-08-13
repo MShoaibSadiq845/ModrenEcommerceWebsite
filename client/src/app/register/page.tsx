@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useDispatch } from 'react-redux';
@@ -56,7 +56,9 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen flex flex-col justify-between bg-[#f0f0f0] font-['Satoshi']">
-      <StorefrontHeader />
+      <Suspense fallback={<div className="h-20 bg-white" />}>
+        <StorefrontHeader />
+      </Suspense>
 
       <main className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-md bg-white rounded-3xl p-8 shadow-xl border border-gray-100 flex flex-col gap-6">

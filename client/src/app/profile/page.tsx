@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useSelector, useDispatch } from 'react-redux';
@@ -173,7 +173,9 @@ export default function ProfilePage() {
   if (!isAuthenticated || !user) {
     return (
       <div className="min-h-screen flex flex-col">
-        <StorefrontHeader />
+        <Suspense fallback={<div className="h-20 bg-white" />}>
+          <StorefrontHeader />
+        </Suspense>
         <div className="flex-1 flex items-center justify-center text-center px-4">
           <div>
             <UserIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
@@ -189,7 +191,9 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f8f8f8] font-['Satoshi']">
-      <StorefrontHeader />
+      <Suspense fallback={<div className="h-20 bg-white" />}>
+        <StorefrontHeader />
+      </Suspense>
 
       <main className="flex-1 w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-10 py-8 flex flex-col gap-6">
 

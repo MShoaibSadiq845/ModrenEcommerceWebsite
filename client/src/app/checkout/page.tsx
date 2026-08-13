@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -168,7 +168,9 @@ export default function CheckoutPage() {
   if (step === 'success') {
     return (
       <div className="min-h-screen flex flex-col bg-[#f8f8f8] font-['Satoshi']">
-        <StorefrontHeader />
+        <Suspense fallback={<div className="h-20 bg-white" />}>
+          <StorefrontHeader />
+        </Suspense>
         <main className="flex-1 flex items-center justify-center px-4 py-16">
           <div className="w-full max-w-lg bg-white rounded-3xl p-8 sm:p-12 shadow-xl border border-gray-100 flex flex-col items-center gap-6 text-center">
             <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
@@ -230,7 +232,9 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f8f8f8] font-['Satoshi']">
-      <StorefrontHeader />
+      <Suspense fallback={<div className="h-20 bg-white" />}>
+        <StorefrontHeader />
+      </Suspense>
 
       <main className="flex-1 w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-10 py-8 flex flex-col gap-6">
         {/* Breadcrumb */}
