@@ -30,6 +30,7 @@ function MessageCard({ msg }: { msg: ContactMessage }) {
   const [expanded, setExpanded] = useState(false);
   const [reply, setReply] = useState('');
   const [showReplyBox, setShowReplyBox] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
 
   const [markRead] = useMarkContactReadMutation();
   const [replyContact, { isLoading: sending }] = useReplyContactMutation();
@@ -55,13 +56,20 @@ function MessageCard({ msg }: { msg: ContactMessage }) {
   };
 
   const handleDelete = async () => {
-    if (!confirm(`Delete message from ${msg.name}?`)) return;
+    if (!deleteConfirm) {
+      // First click — show inline confirmation, no browser dialog
+      setDeleteConfirm(true);
+      toast('Click Delete again to confirm removal.', { icon: '⚠️', duration: 3000 });
+      setTimeout(() => setDeleteConfirm(false), 4000);
+      return;
+    }
     try {
       await deleteContact(msg._id).unwrap();
       toast.success('Message deleted.');
     } catch {
       toast.error('Failed to delete.');
     }
+    setDeleteConfirm(false);
   };
 
   return (
@@ -136,11 +144,15 @@ function MessageCard({ msg }: { msg: ContactMessage }) {
               {msg.adminReply ? 'Send Another Reply' : 'Reply by Email'}
             </button>
             <button
-              onClick={handleDelete}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-red-200 text-red-600 text-xs font-bold rounded-xl hover:bg-red-50 transition-all"
+              onClick={(e) => { e.stopPropagation(); handleDelete(); }}
+              className={`flex items-center gap-2 px-4 py-2 border text-xs font-bold rounded-xl transition-all ${
+                deleteConfirm
+                  ? 'bg-red-600 text-white border-red-600 hover:bg-red-700'
+                  : 'bg-white border-red-200 text-red-600 hover:bg-red-50'
+              }`}
             >
               <Trash2 className="w-3.5 h-3.5" />
-              Delete
+              {deleteConfirm ? 'Confirm Delete?' : 'Delete'}
             </button>
             {msg.status === 'read' && (
               <div className="flex items-center gap-1.5 text-xs text-gray-400">

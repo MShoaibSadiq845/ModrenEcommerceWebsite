@@ -43,9 +43,9 @@ function OrderProgressBar({ status }: { status: OrderStatus }) {
       <div className="relative flex items-center justify-between">
         {/* Background line */}
         <div className="absolute left-0 right-0 top-4 h-1 bg-gray-200 rounded-full -z-0" />
-        {/* Active fill line */}
+        {/* Active fill line — green */}
         <div
-          className="absolute left-0 top-4 h-1 bg-black rounded-full -z-0 transition-all duration-700"
+          className="absolute left-0 top-4 h-1 bg-green-500 rounded-full -z-0 transition-all duration-700"
           style={{ width: activeIdx >= 0 ? `${(activeIdx / (STEPS.length - 1)) * 100}%` : '0%' }}
         />
 
@@ -58,9 +58,9 @@ function OrderProgressBar({ status }: { status: OrderStatus }) {
               <div
                 className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all duration-500 ${
                   done
-                    ? 'bg-black border-black'
+                    ? 'bg-green-500 border-green-500'
                     : 'bg-white border-gray-300'
-                } ${current ? 'ring-4 ring-black/10 scale-110' : ''}`}
+                } ${current ? 'ring-4 ring-green-500/20 scale-110' : ''}`}
               >
                 {done && (
                   <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -72,7 +72,7 @@ function OrderProgressBar({ status }: { status: OrderStatus }) {
                 )}
               </div>
               {/* Label */}
-              <span className={`text-[10px] font-bold whitespace-nowrap ${done ? 'text-black' : 'text-gray-400'}`}>
+              <span className={`text-[10px] font-bold whitespace-nowrap ${done ? 'text-green-600' : 'text-gray-400'}`}>
                 {step}
               </span>
             </div>

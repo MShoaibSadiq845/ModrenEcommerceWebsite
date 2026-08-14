@@ -156,7 +156,7 @@ export default function ProductDetailPage() {
     // ── Auth guard: must be logged in to purchase ──
     const rawToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     if (!rawToken) {
-      toast.error('Please login first to add items to cart!', { icon: '🔒' });
+      toast.error('Please register or login first to add items to cart!', { icon: '🔒' });
       return;
     }
 
