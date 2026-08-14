@@ -1,32 +1,19 @@
-# ── Stage 1: Build ──────────────────────────────────────────────
 FROM node:20-alpine AS builder
-
 WORKDIR /app
-
-# Native module build deps (bcrypt)
 RUN apk add --no-cache python3 make g++
-
 COPY package*.json ./
 RUN npm ci
-
 COPY tsconfig*.json ./
 COPY nest-cli.json ./
 COPY src ./src
-
 RUN npm run build
 RUN npm prune --production
 
-# ── Stage 2: Production ─────────────────────────────────────────
 FROM node:20-alpine AS production
-
 WORKDIR /app
-
 ENV NODE_ENV=production
-
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY package*.json ./
-
 EXPOSE 3000
-
 CMD ["node", "dist/main.js"]

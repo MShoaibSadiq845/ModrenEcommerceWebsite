@@ -8,7 +8,7 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   app.enableCors({
-    origin: process.env.CLIENT_URL || '*', // Production mein client URL set karein
+    origin: process.env.CLIENT_URL || '*',
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
     allowedHeaders: 'Content-Type, Accept, Authorization',
@@ -25,11 +25,7 @@ async function bootstrap() {
   );
 
   const port = process.env.PORT || 5000;
-  
-  // ðŸ‘‰ FIX: '0.0.0.0' pass karna zaroori hai Railway ke liye
   await app.listen(port, '0.0.0.0');
-  
-  logger.log(`ðŸš€ NestJS Backend Server running on port ${port}`);
+  logger.log(`Server running on port ${port}`);
 }
-// v20260814051736
 bootstrap();
