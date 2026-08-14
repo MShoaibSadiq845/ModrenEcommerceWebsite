@@ -8,7 +8,7 @@ import { RootState } from '@/store/store';
 import {
   LayoutDashboard, ShoppingBag, ShoppingCart,
   Bell, PlusCircle, ArrowLeft, Users, Tag, X,
-  MessageSquare, Mail,
+  MessageSquare, Mail, TrendingUp,
 } from 'lucide-react';
 
 interface Props {
@@ -22,6 +22,7 @@ export function AdminSidebar({ onClose }: Props) {
 
   const navItems = [
     { label: 'Dashboard',    href: '/admin',                icon: LayoutDashboard },
+    { label: 'Data Overview', href: '/admin/dashboard-data', icon: TrendingUp },
     { label: 'Products',     href: '/admin/products',       icon: ShoppingBag },
     { label: 'Add Product',  href: '/admin/products/add',   icon: PlusCircle },
     { label: 'Orders',       href: '/admin/orders',         icon: ShoppingCart },
