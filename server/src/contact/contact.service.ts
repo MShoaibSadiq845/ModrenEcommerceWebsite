@@ -49,49 +49,63 @@ export class ContactService {
     const doc = await this.contactModel.findById(id).exec();
     if (!doc) throw new NotFoundException('Contact message not found');
 
-    /* Send email via nodemailer */
-    const transporter = nodemailer.createTransport({
-      service: process.env.EMAIL_SERVICE || 'gmail',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
+    /* Try to send email via nodemailer */
+    let emailSent = false;
+    try {
+      const transporter = nodemailer.createTransport({
+        service: process.env.EMAIL_SERVICE || 'gmail',
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
+        },
+      });
 
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
-      to: doc.email,
-      subject: `Re: ${doc.subject}`,
-      html: `
-        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
-          <div style="background:#111;padding:20px 24px;border-radius:8px 8px 0 0;">
-            <h2 style="color:#fff;margin:0;font-size:20px;">SHOP.CO Support</h2>
-          </div>
-          <div style="background:#f9f9f9;padding:24px;border:1px solid #e5e5e5;border-radius:0 0 8px 8px;">
-            <p style="color:#555;font-size:14px;margin:0 0 8px 0;">Hi <strong>${doc.name}</strong>,</p>
-            <p style="color:#555;font-size:14px;margin:0 0 16px 0;">
-              Thank you for reaching out. Here is our reply to your query:
-            </p>
-            <div style="background:#fff;border-left:4px solid #111;padding:16px;border-radius:4px;margin-bottom:16px;">
-              <p style="color:#111;font-size:14px;margin:0;white-space:pre-wrap;">${dto.reply}</p>
+      await transporter.sendMail({
+        from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+        to: doc.email,
+        subject: `Re: ${doc.subject}`,
+        html: `
+          <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+            <div style="background:#111;padding:20px 24px;border-radius:8px 8px 0 0;">
+              <h2 style="color:#fff;margin:0;font-size:20px;">SHOP.CO Support</h2>
             </div>
-            <hr style="border:none;border-top:1px solid #e5e5e5;margin:16px 0;" />
-            <p style="color:#888;font-size:12px;margin:0;">
-              Your original message: <em>${doc.message}</em>
-            </p>
-            <p style="color:#aaa;font-size:11px;margin:12px 0 0 0;">
-              © ${new Date().getFullYear()} SHOP.CO — All rights reserved.
-            </p>
+            <div style="background:#f9f9f9;padding:24px;border:1px solid #e5e5e5;border-radius:0 0 8px 8px;">
+              <p style="color:#555;font-size:14px;margin:0 0 8px 0;">Hi <strong>${doc.name}</strong>,</p>
+              <p style="color:#555;font-size:14px;margin:0 0 16px 0;">
+                Thank you for reaching out. Here is our reply to your query:
+              </p>
+              <div style="background:#fff;border-left:4px solid #111;padding:16px;border-radius:4px;margin-bottom:16px;">
+                <p style="color:#111;font-size:14px;margin:0;white-space:pre-wrap;">${dto.reply}</p>
+              </div>
+              <hr style="border:none;border-top:1px solid #e5e5e5;margin:16px 0;" />
+              <p style="color:#888;font-size:12px;margin:0;">
+                Your original message: <em>${doc.message}</em>
+              </p>
+              <p style="color:#aaa;font-size:11px;margin:12px 0 0 0;">
+                © ${new Date().getFullYear()} SHOP.CO — All rights reserved.
+              </p>
+            </div>
           </div>
-        </div>
-      `,
-    });
+        `,
+      });
 
-    /* Persist reply + update status */
+      emailSent = true;
+    } catch (emailError: any) {
+      console.error('❌ Failed to send email reply:', emailError?.message || emailError);
+      // Continue execution — we'll still save the reply to DB even if email fails
+    }
+
+    /* Persist reply + update status regardless of email success */
     doc.adminReply = dto.reply;
     doc.status = ContactStatus.REPLIED;
     doc.repliedAt = new Date();
-    return doc.save();
+    const saved = await doc.save();
+
+    if (!emailSent) {
+      console.warn(`⚠️ Reply saved to DB but email to ${doc.email} was not sent.`);
+    }
+
+    return saved;
   }
 
   /* ── Unread count (admin badge) ── */

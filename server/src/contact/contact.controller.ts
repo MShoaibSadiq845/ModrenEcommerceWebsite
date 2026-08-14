@@ -44,7 +44,7 @@ export class ContactController {
     return this.contactService.markRead(id);
   }
 
-  @Put(':id/reply')
+  @Post(':id/reply')
   @UseGuards(AuthGuard('jwt'), RoleGuard(UserRole.ADMIN, UserRole.SUPER_ADMIN))
   reply(@Param('id') id: string, @Body() dto: ReplyContactDto) {
     return this.contactService.reply(id, dto);

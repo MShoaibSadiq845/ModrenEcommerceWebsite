@@ -48,7 +48,7 @@ export const contactApi = apiSlice.injectEndpoints({
     replyContact: builder.mutation<ContactMessage, { id: string; reply: string }>({
       query: ({ id, reply }) => ({
         url: `/contact/${id}/reply`,
-        method: 'PUT',
+        method: 'POST',
         body: { reply },
       }),
       invalidatesTags: ['Contact'],
