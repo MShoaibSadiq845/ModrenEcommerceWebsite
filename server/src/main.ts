@@ -26,9 +26,10 @@ async function bootstrap() {
 
   const port = process.env.PORT || 5000;
   
-  // 👉 FIX: '0.0.0.0' pass karna zaroori hai Railway ke liye
+  // ðŸ‘‰ FIX: '0.0.0.0' pass karna zaroori hai Railway ke liye
   await app.listen(port, '0.0.0.0');
   
-  logger.log(`🚀 NestJS Backend Server running on port ${port}`);
+  logger.log(`ðŸš€ NestJS Backend Server running on port ${port}`);
 }
+// v20260814051736
 bootstrap();
