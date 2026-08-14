@@ -49,10 +49,17 @@ export function ContactModal({ open, onClose }: Props) {
   const onSubmit = async (values: FormValues) => {
     try {
       await submitContact(values).unwrap();
-      toast.success('Message sent! We\'ll get back to you soon.');
+      toast.success("Message sent! We'll get back to you soon.");
       onClose();
-    } catch {
-      toast.error('Failed to send message. Please try again.');
+    } catch (err: any) {
+      // Show the actual validation error from the server if available
+      const serverMsg =
+        err?.data?.message
+          ? Array.isArray(err.data.message)
+            ? err.data.message.join(', ')
+            : err.data.message
+          : 'Failed to send message. Please try again.';
+      toast.error(serverMsg);
     }
   };
 
