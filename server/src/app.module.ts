@@ -10,6 +10,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { SeedModule } from './seed/seed.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { ContactModule } from './contact/contact.module';
+import { NewsletterModule } from './newsletter/newsletter.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { ContactModule } from './contact/contact.module';
     SeedModule,
     CloudinaryModule,
     ContactModule,
+    NewsletterModule,
   ],
 })
 export class AppModule {}

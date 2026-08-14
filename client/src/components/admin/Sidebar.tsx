@@ -8,6 +8,7 @@ import { RootState } from '@/store/store';
 import {
   LayoutDashboard, ShoppingBag, ShoppingCart,
   Bell, PlusCircle, ArrowLeft, Users, Tag, X,
+  MessageSquare, Mail,
 } from 'lucide-react';
 
 interface Props {
@@ -20,12 +21,14 @@ export function AdminSidebar({ onClose }: Props) {
   const isSuperAdmin = user?.role === 'Super Admin';
 
   const navItems = [
-    { label: 'Dashboard',    href: '/admin',              icon: LayoutDashboard },
-    { label: 'Products',     href: '/admin/products',     icon: ShoppingBag },
-    { label: 'Add Product',  href: '/admin/products/add', icon: PlusCircle },
-    { label: 'Orders',       href: '/admin/orders',       icon: ShoppingCart },
-    { label: 'Coupons',      href: '/admin/coupons',      icon: Tag },
-    { label: 'Notifications',href: '/admin/notifications',icon: Bell },
+    { label: 'Dashboard',    href: '/admin',                icon: LayoutDashboard },
+    { label: 'Products',     href: '/admin/products',       icon: ShoppingBag },
+    { label: 'Add Product',  href: '/admin/products/add',   icon: PlusCircle },
+    { label: 'Orders',       href: '/admin/orders',         icon: ShoppingCart },
+    { label: 'Coupons',      href: '/admin/coupons',        icon: Tag },
+    { label: 'Notifications',href: '/admin/notifications',  icon: Bell },
+    { label: 'Queries',      href: '/admin/queries',        icon: MessageSquare },
+    { label: 'Newsletter',   href: '/admin/newsletter',     icon: Mail },
     ...(isSuperAdmin ? [{ label: 'Users', href: '/admin/users', icon: Users }] : []),
   ];
 

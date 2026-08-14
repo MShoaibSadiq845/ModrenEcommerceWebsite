@@ -152,6 +152,14 @@ export default function ProductDetailPage() {
 
   const handleAddToCart = async () => {
     if (isAdding || isOutOfStock) return;
+
+    // ── Auth guard: must be logged in to purchase ──
+    const rawToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!rawToken) {
+      toast.error('Please login first to add items to cart!', { icon: '🔒' });
+      return;
+    }
+
     setIsAdding(true);
     const method = isLoyaltyOnly ? 'points' : paymentMethod;
 
