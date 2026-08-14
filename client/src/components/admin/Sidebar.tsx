@@ -29,8 +29,7 @@ export function AdminSidebar({ onClose }: Props) {
     ...(isSuperAdmin ? [{ label: 'Users', href: '/admin/users', icon: Users }] : []),
   ];
 
-  const isActive = (href: string) =>
-    href === '/admin' ? pathname === '/admin' : pathname.startsWith(href);
+  const isActive = (href: string) => pathname === href;
 
   return (
     <aside className="w-64 h-full bg-white border-r border-gray-200 flex flex-col justify-between p-5 font-['Rubik']">

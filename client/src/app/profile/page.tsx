@@ -16,6 +16,7 @@ import {
 } from '@/store/services/usersApi';
 import { StorefrontHeader } from '@/components/storefront/Header';
 import { StorefrontFooter } from '@/components/storefront/Footer';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import {
   Award, Package, User as UserIcon, Mail, Shield,
   TrendingUp, ShoppingBag, Clock, CheckCircle2, Truck,
@@ -170,30 +171,14 @@ export default function ProfilePage() {
 
   const avatarUrl = (dbUser as any)?.avatar || (user as any)?.avatar || '';
 
-  if (!isAuthenticated || !user) {
-    return (
-      <div className="min-h-screen flex flex-col">
+  if (!isAuthenticated || !user) return null;
+
+  return (
+    <ProtectedRoute>
+      <div className="min-h-screen flex flex-col bg-[#f8f8f8] font-['Satoshi']">
         <Suspense fallback={<div className="h-20 bg-white" />}>
           <StorefrontHeader />
         </Suspense>
-        <div className="flex-1 flex items-center justify-center text-center px-4">
-          <div>
-            <UserIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <h2 className="text-xl font-bold">Sign in Required</h2>
-            <p className="text-sm text-gray-500 mt-1">Please sign in to view your profile.</p>
-            <Link href="/login" className="mt-4 inline-block px-6 py-3 bg-black text-white rounded-full text-sm font-bold">Sign In</Link>
-          </div>
-        </div>
-        <StorefrontFooter />
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen flex flex-col bg-[#f8f8f8] font-['Satoshi']">
-      <Suspense fallback={<div className="h-20 bg-white" />}>
-        <StorefrontHeader />
-      </Suspense>
 
       <main className="flex-1 w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-10 py-8 flex flex-col gap-6">
 
@@ -462,5 +447,6 @@ export default function ProfilePage() {
 
       <StorefrontFooter />
     </div>
+    </ProtectedRoute>
   );
 }

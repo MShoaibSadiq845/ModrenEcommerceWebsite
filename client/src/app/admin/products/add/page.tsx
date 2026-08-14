@@ -1,18 +1,38 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { useCreateProductMutation } from '@/store/services/productsApi';
-import { ArrowLeft, Save, UploadCloud, Image as ImageIcon, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, Save, UploadCloud, Image as ImageIcon, Loader2, ChevronDown, ChevronUp, Plus, X } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
 import Image from 'next/image';
 import { getAuthToken } from '@/lib/getAuthToken';
 
 const ALL_SIZES = ['XX-Small','X-Small','Small','Medium','Large','X-Large','XX-Large','3X-Large','4X-Large'];
-
 const CATEGORIES = ['Casual','Formal','Party','Gym','T-shirts','Shirts','Jeans','Shorts','Hoodie'];
+
+/* ── Preset colour swatches the admin can pick from ── */
+const PRESET_COLORS = [
+  { name: 'Green',   hex: '#22c55e' },
+  { name: 'Red',     hex: '#ef4444' },
+  { name: 'Yellow',  hex: '#eab308' },
+  { name: 'Orange',  hex: '#f97316' },
+  { name: 'Blue',    hex: '#3b82f6' },
+  { name: 'Purple',  hex: '#a855f7' },
+  { name: 'Pink',    hex: '#ec4899' },
+  { name: 'Black',   hex: '#111111' },
+  { name: 'White',   hex: '#ffffff' },
+  { name: 'Gray',    hex: '#9ca3af' },
+];
+
+type ColorEntry = {
+  name: string;
+  hex: string;
+  imageUrl: string;   // Cloudinary URL after upload
+  uploading: boolean;
+};
 
 type FormInputs = {
   name: string;
@@ -24,7 +44,7 @@ type FormInputs = {
   stock: string;
   sku: string;
   rating: string;
-  imageInput: string;
+  imageInput: string; // main / fallback image
 };
 
 export default function AdminAddProductPage() {
@@ -32,8 +52,16 @@ export default function AdminAddProductPage() {
   const [createProduct, { isLoading }] = useCreateProductMutation();
   const [isUploading, setIsUploading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  /* sizes */
   const [selectedSizes, setSelectedSizes] = useState<string[]>(['Medium','Large','X-Large']);
   const [showSizeDropdown, setShowSizeDropdown] = useState(false);
+
+  /* colors — only ONE active index at a time */
+  const [colors, setColors] = useState<ColorEntry[]>([]);
+  const [activeColorIdx, setActiveColorIdx] = useState<number | null>(null);
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const colorFileRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormInputs>({
     defaultValues: {
@@ -54,28 +82,36 @@ export default function AdminAddProductPage() {
   const watchRating = watch('rating');
   const watchPurchaseType = watch('purchaseType');
 
+  /* ── Sizes ── */
   const toggleSize = (size: string) => {
     setSelectedSizes(prev =>
       prev.includes(size) ? prev.filter(s => s !== size) : [...prev, size]
     );
   };
 
+  /* ── Generic Cloudinary upload helper ── */
+  const uploadFile = async (file: File): Promise<string> => {
+    const token = getAuthToken();
+    if (!token) throw new Error('Not authenticated');
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/products/upload`,
+      { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData }
+    );
+    if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+    const data = await res.json();
+    return data.url as string;
+  };
+
+  /* ── Main product image upload ── */
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const token = getAuthToken();
-    if (!token) { toast.error('Not authenticated'); return; }
-    const formData = new FormData();
-    formData.append('file', file);
     setIsUploading(true);
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/products/upload`,
-        { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: formData }
-      );
-      if (!res.ok) throw new Error(`Upload failed (${res.status})`);
-      const data = await res.json();
-      setValue('imageInput', data.url, { shouldValidate: true });
+      const url = await uploadFile(file);
+      setValue('imageInput', url, { shouldValidate: true });
       toast.success('Image uploaded!');
     } catch (err: any) {
       toast.error(err?.message || 'Upload failed');
@@ -84,14 +120,67 @@ export default function AdminAddProductPage() {
     }
   };
 
+  /* ── Add a colour swatch ── */
+  const addColor = (preset: { name: string; hex: string }) => {
+    if (colors.some(c => c.hex === preset.hex)) {
+      toast('Color already added', { icon: 'ℹ️' });
+      return;
+    }
+    const newIdx = colors.length;
+    setColors(prev => [...prev, { name: preset.name, hex: preset.hex, imageUrl: '', uploading: false }]);
+    setActiveColorIdx(newIdx);
+    // keep picker open so multiple colors can be selected in one go
+  };
+
+  /* ── Remove a colour ── */
+  const removeColor = (idx: number) => {
+    setColors(prev => prev.filter((_, i) => i !== idx));
+    setActiveColorIdx(prev => {
+      if (prev === null) return null;
+      if (prev === idx) return null;
+      if (prev > idx) return prev - 1;
+      return prev;
+    });
+  };
+
+  /* ── Per-colour image upload ── */
+  const handleColorImageChange = async (e: React.ChangeEvent<HTMLInputElement>, idx: number) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setColors(prev => prev.map((c, i) => i === idx ? { ...c, uploading: true } : c));
+    try {
+      const url = await uploadFile(file);
+      setColors(prev => prev.map((c, i) => i === idx ? { ...c, imageUrl: url, uploading: false } : c));
+      toast.success(`Image set for ${colors[idx].name}`);
+    } catch (err: any) {
+      setColors(prev => prev.map((c, i) => i === idx ? { ...c, uploading: false } : c));
+      toast.error(err?.message || 'Upload failed');
+    }
+    // reset input so the same file can be re-selected if needed
+    if (colorFileRefs.current[idx]) colorFileRefs.current[idx]!.value = '';
+  };
+
+  /* ── Submit ── */
   const onSubmit = async (data: FormInputs) => {
     if (selectedSizes.length === 0) { toast.error('Select at least one size'); return; }
     setErrorMsg('');
     try {
       const priceNum = Number(data.price);
       const ratingNum = Math.min(5, Math.max(1, Number(data.rating) || 4.5));
-      // Auto-calculate points price from base price (10× price)
       const pointsPrice = Math.round(priceNum * 10);
+
+      // Build images array: per-colour images first, then the main fallback
+      const colorImages = colors.filter(c => c.imageUrl).map(c => c.imageUrl);
+      const images = colorImages.length > 0
+        ? colorImages
+        : [data.imageInput || '/images/7.png'];
+
+      // Build colors payload
+      const colorsPayload = colors.map(c => ({
+        name: c.name,
+        hex: c.hex,
+        imageUrl: c.imageUrl || data.imageInput || '',
+      }));
 
       await createProduct({
         name: data.name,
@@ -100,14 +189,15 @@ export default function AdminAddProductPage() {
         salePrice: priceNum,
         isOnSale: false,
         purchaseType: data.purchaseType,
-        pointsPrice,           // auto-calculated, not user-entered
+        pointsPrice,
         category: data.category,
         brand: data.brand,
         size: selectedSizes[0] || 'Medium',
-        sizes: selectedSizes,  // all selected sizes stored
+        sizes: selectedSizes,
         stock: Number(data.stock),
         sku: data.sku,
-        images: [data.imageInput || '/images/7.png'],
+        images,
+        colors: colorsPayload,
         tags: [data.category.toLowerCase(), data.brand.toLowerCase(), ...selectedSizes.map(s => s.toLowerCase())],
         rating: ratingNum,
       } as any).unwrap();
@@ -121,7 +211,7 @@ export default function AdminAddProductPage() {
     }
   };
 
-  // Live star preview
+  /* ── Star preview ── */
   const ratingVal = Math.min(5, Math.max(0, Number(watchRating) || 0));
   const fullStars = Math.floor(ratingVal);
   const hasHalf = ratingVal % 1 >= 0.3;
@@ -134,7 +224,7 @@ export default function AdminAddProductPage() {
 
   return (
     <div className="flex flex-col gap-5 font-['Rubik'] w-full max-w-3xl mx-auto">
-      {/* Header */}
+      {/* Page header */}
       <div className="flex items-center gap-3">
         <Link href="/admin/products" className="p-2 bg-white rounded-xl border border-gray-200 hover:bg-gray-50 transition-all">
           <ArrowLeft className="w-4 h-4 text-gray-700" />
@@ -183,7 +273,6 @@ export default function AdminAddProductPage() {
               className={`border rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-black font-bold transition-all ${errors.price ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-gray-50 focus:bg-white'}`}
             />
             {errors.price && <span className="text-[10px] text-red-500">{errors.price.message}</span>}
-            {/* Show auto-calculated points cost */}
             {watch('price') && Number(watch('price')) > 0 && (
               <p className="text-[10px] text-amber-600 font-semibold">
                 🏆 Auto loyalty cost: {Math.round(Number(watch('price')) * 10)} pts
@@ -265,7 +354,6 @@ export default function AdminAddProductPage() {
               })}
               className={`border rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-black font-bold w-full sm:w-32 transition-all ${errors.rating ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-gray-50 focus:bg-white'}`}
             />
-            {/* Live preview */}
             <div className="flex items-center gap-1">
               {Array.from({ length: 5 }).map((_, i) => (
                 <StarIcon key={i} filled={i < fullStars} half={i === fullStars && hasHalf} />
@@ -277,7 +365,7 @@ export default function AdminAddProductPage() {
           <p className="text-[10px] text-gray-400">This rating displays below the product card in the shop — shown dynamically.</p>
         </div>
 
-        {/* Sizes — dropdown with pill toggles */}
+        {/* ── Sizes ── */}
         <div className="flex flex-col gap-2">
           <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider">
             Available Sizes
@@ -288,21 +376,19 @@ export default function AdminAddProductPage() {
             )}
           </label>
 
-          {/* Dropdown trigger */}
           <button
             type="button"
             onClick={() => setShowSizeDropdown(!showSizeDropdown)}
             className="flex items-center justify-between w-full border border-gray-200 bg-gray-50 hover:bg-white rounded-xl p-3 text-sm font-medium text-gray-700 outline-none focus:ring-2 focus:ring-black transition-all"
           >
             <span>
-              {selectedSizes.length === 0
-                ? 'Select sizes...'
-                : selectedSizes.join(', ')}
+              {selectedSizes.length === 0 ? 'Select sizes...' : selectedSizes.join(', ')}
             </span>
-            {showSizeDropdown ? <ChevronUp className="w-4 h-4 text-gray-400 shrink-0" /> : <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />}
+            {showSizeDropdown
+              ? <ChevronUp className="w-4 h-4 text-gray-400 shrink-0" />
+              : <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />}
           </button>
 
-          {/* Size pills in dropdown */}
           {showSizeDropdown && (
             <div className="border border-gray-200 rounded-xl p-4 bg-white shadow-md">
               <div className="flex flex-wrap gap-2">
@@ -324,11 +410,8 @@ export default function AdminAddProductPage() {
                 <p className="text-[10px] text-gray-400">
                   {selectedSizes.length === 0 ? 'No sizes selected' : `Selected: ${selectedSizes.join(', ')}`}
                 </p>
-                <button
-                  type="button"
-                  onClick={() => setShowSizeDropdown(false)}
-                  className="text-[11px] font-bold text-black underline"
-                >
+                <button type="button" onClick={() => setShowSizeDropdown(false)}
+                  className="text-[11px] font-bold text-black underline">
                   Done
                 </button>
               </div>
@@ -339,13 +422,187 @@ export default function AdminAddProductPage() {
           )}
         </div>
 
-        {/* Product Image */}
+        {/* ══════════════════════════════════════════════
+            COLORS + PER-COLOR IMAGE UPLOAD
+        ══════════════════════════════════════════════ */}
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider">
+              Colors
+              {colors.length > 0 && (
+                <span className="ml-2 text-[10px] font-normal text-gray-400 normal-case">
+                  {colors.length} added
+                </span>
+              )}
+            </label>
+            <button
+              type="button"
+              onClick={() => setShowColorPicker(!showColorPicker)}
+              className="flex items-center gap-1.5 text-[11px] font-bold text-black border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-all"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Add Color
+              {showColorPicker
+                ? <ChevronUp className="w-3.5 h-3.5 text-gray-500" />
+                : <ChevronDown className="w-3.5 h-3.5 text-gray-500" />}
+            </button>
+          </div>
+
+          {/* ── Color swatch picker ── */}
+          {showColorPicker && (
+            <div className="border border-gray-200 rounded-xl p-4 bg-white shadow-md">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">
+                  Pick colors — click to add, click again row to select
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowColorPicker(false)}
+                  className="text-[11px] font-bold text-black underline"
+                >
+                  Done
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2.5">
+                {PRESET_COLORS.map(preset => {
+                  const alreadyAdded = colors.some(c => c.hex === preset.hex);
+                  return (
+                    <button
+                      key={preset.hex}
+                      type="button"
+                      title={preset.name}
+                      onClick={() => addColor(preset)}
+                      className={`relative w-9 h-9 rounded-full border-2 transition-all ${
+                        alreadyAdded
+                          ? 'border-black scale-110 cursor-default'
+                          : 'border-transparent hover:scale-110 hover:border-gray-400 cursor-pointer'
+                      }`}
+                      style={{ backgroundColor: preset.hex }}
+                    >
+                      {/* tick overlay for already-added swatches */}
+                      {alreadyAdded && (
+                        <span className="absolute inset-0 flex items-center justify-center">
+                          <svg className="w-4 h-4 drop-shadow" viewBox="0 0 16 16" fill="none">
+                            <path d="M3 8l3.5 3.5L13 5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              {colors.length > 0 && (
+                <p className="mt-3 text-[10px] text-gray-400">
+                  {colors.length} color{colors.length > 1 ? 's' : ''} added — upload an image for each below.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* ── Added colours list with per-colour upload ── */}
+          {colors.length > 0 && (
+            <div className="flex flex-col gap-3">
+              {colors.map((color, idx) => {
+                const isActive = activeColorIdx === idx;
+                return (
+                  <div
+                    key={color.hex}
+                    onClick={() => setActiveColorIdx(idx)}
+                    className={`flex flex-col sm:flex-row sm:items-center gap-3 border-2 rounded-xl p-3 cursor-pointer transition-all ${
+                      isActive
+                        ? 'border-black bg-gray-50'
+                        : 'border-gray-200 bg-white hover:border-gray-300'
+                    }`}
+                  >
+                    {/* Color swatch + name */}
+                    <div className="flex items-center gap-2.5 shrink-0">
+                      {/* The swatch: black ring only when THIS color is active */}
+                      <div
+                        className={`w-8 h-8 rounded-full border-2 shrink-0 ${
+                          isActive ? 'border-black ring-2 ring-black ring-offset-2' : 'border-gray-200'
+                        }`}
+                        style={{ backgroundColor: color.hex }}
+                      />
+                      <span className="text-sm font-semibold text-gray-800 w-16">{color.name}</span>
+                    </div>
+
+                    {/* Image upload zone */}
+                    <div className="flex-1 flex items-center gap-3" onClick={e => e.stopPropagation()}>
+                      {/* Preview thumbnail */}
+                      <div className="w-12 h-12 rounded-lg border border-gray-200 bg-[#f0f0f0] overflow-hidden relative shrink-0 flex items-center justify-center">
+                        {color.imageUrl ? (
+                          <Image src={color.imageUrl} alt={color.name} fill className="object-cover" />
+                        ) : (
+                          <ImageIcon className="w-4 h-4 text-gray-300" />
+                        )}
+                      </div>
+
+                      {/* Upload button */}
+                      <label className={`flex-1 flex items-center justify-center gap-2 border border-dashed rounded-lg p-2.5 cursor-pointer transition-all text-xs font-medium ${
+                        color.uploading
+                          ? 'border-gray-200 bg-gray-50 text-gray-400'
+                          : color.imageUrl
+                            ? 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100'
+                            : 'border-gray-300 bg-gray-50 text-gray-500 hover:border-black hover:bg-gray-100'
+                      }`}>
+                        {color.uploading ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            Uploading…
+                          </>
+                        ) : color.imageUrl ? (
+                          <>
+                            <UploadCloud className="w-3.5 h-3.5" />
+                            Change image
+                          </>
+                        ) : (
+                          <>
+                            <UploadCloud className="w-3.5 h-3.5" />
+                            Upload image for {color.name}
+                          </>
+                        )}
+                        <input
+                          ref={el => { colorFileRefs.current[idx] = el; }}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={color.uploading}
+                          onChange={e => handleColorImageChange(e, idx)}
+                        />
+                      </label>
+                    </div>
+
+                    {/* Remove button */}
+                    <button
+                      type="button"
+                      onClick={e => { e.stopPropagation(); removeColor(idx); }}
+                      className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all shrink-0"
+                      title="Remove color"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {colors.length === 0 && (
+            <p className="text-[10px] text-gray-400">No colors added — product will show without color options.</p>
+          )}
+        </div>
+
+        {/* ── Main / Fallback Product Image ── */}
         <div className="flex flex-col gap-2">
-          <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider">Product Image</label>
-          <input type="hidden" {...register('imageInput', { required: 'Image is required' })} />
+          <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider">
+            {colors.length > 0 ? 'Fallback Product Image' : 'Product Image'}
+          </label>
+          {colors.length > 0 && (
+            <p className="text-[10px] text-gray-400">Used when no colour is selected. If all colours have images, this is still recommended.</p>
+          )}
+          <input type="hidden" {...register('imageInput', { required: colors.length === 0 ? 'Image is required' : false })} />
 
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-            {/* Preview */}
             <div className="w-20 h-24 sm:w-24 sm:h-28 bg-[#f0f0f0] rounded-xl overflow-hidden border border-gray-200 flex items-center justify-center shrink-0 relative">
               {watchImageInput ? (
                 <Image src={watchImageInput} alt="Preview" fill className="object-cover" />
@@ -354,7 +611,6 @@ export default function AdminAddProductPage() {
               )}
             </div>
 
-            {/* Upload zone */}
             <label className={`flex-1 w-full flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-5 cursor-pointer transition-all gap-2 text-center ${
               errors.imageInput ? 'border-red-400 bg-red-50' : 'border-gray-300 hover:border-black bg-gray-50 hover:bg-gray-100'
             }`}>
@@ -376,7 +632,7 @@ export default function AdminAddProductPage() {
           {errors.imageInput && <span className="text-[10px] text-red-500">{errors.imageInput.message}</span>}
         </div>
 
-        {/* Info box: loyalty points policy */}
+        {/* Loyalty Points info */}
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-800">
           <p className="font-bold mb-1">🏆 Loyalty Points System</p>
           <ul className="flex flex-col gap-1 font-medium text-amber-700 list-none">

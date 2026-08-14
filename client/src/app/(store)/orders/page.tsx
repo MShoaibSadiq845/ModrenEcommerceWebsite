@@ -8,28 +8,16 @@ import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton';
 import { PageLoader } from '@/components/ui/PageLoader';
 import { Award, Package, Clock, CheckCircle2, Truck, XCircle } from 'lucide-react';
 import Link from 'next/link';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
 export default function UserOrdersPage() {
-  const { user, isAuthenticated } = useSelector((state: RootState) => state.auth);
-  const { data: orders = [], isLoading } = useGetMyOrdersQuery(undefined, {
-    skip: !isAuthenticated,
-  });
-
-  if (!isAuthenticated) {
-    return (
-      <div className="w-full max-w-[800px] mx-auto px-4 py-20 text-center font-['Satoshi']">
-        <h2 className="text-2xl font-bold text-gray-900">Sign in Required</h2>
-        <p className="text-xs text-gray-500 mt-2">Please sign in to view your order history and loyalty points.</p>
-        <Link href="/login" className="mt-4 inline-block px-6 py-2.5 bg-black text-white rounded-full text-xs font-bold">
-          Sign In
-        </Link>
-      </div>
-    );
-  }
+  const { user } = useSelector((state: RootState) => state.auth);
+  const { data: orders = [], isLoading } = useGetMyOrdersQuery(undefined);
 
   if (isLoading) return <PageLoader message="Loading your orders..." />;
 
   return (
+    <ProtectedRoute>
     <div className="w-full max-w-[1240px] mx-auto px-4 py-8 flex flex-col gap-8 font-['Satoshi']">
       {/* Loyalty Points Profile Card */}
       <div className="w-full bg-gradient-to-r from-black via-gray-900 to-amber-900 rounded-3xl p-8 text-white flex flex-col sm:flex-row items-center justify-between gap-6 shadow-xl">
@@ -112,6 +100,7 @@ export default function UserOrdersPage() {
         )}
       </div>
     </div>
+    </ProtectedRoute>
   );
 }
 

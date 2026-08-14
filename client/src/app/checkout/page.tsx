@@ -13,6 +13,7 @@ import { useUpdateShippingAddressMutation } from '@/store/services/usersApi';
 import { useGetUserByIdQuery } from '@/store/services/usersApi';
 import { StorefrontHeader } from '@/components/storefront/Header';
 import { StorefrontFooter } from '@/components/storefront/Footer';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import {
   MapPin, Phone, User as UserIcon, Home, Globe,
   ChevronRight, CheckCircle, Award, Loader2,
@@ -69,11 +70,10 @@ export default function CheckoutPage() {
     }
   }, [userData, user, reset]);
 
-  // Redirect if not authenticated or cart empty
+  // Redirect if cart empty (auth is handled by ProtectedRoute wrapper)
   useEffect(() => {
-    if (!isAuthenticated) { router.push('/login'); return; }
     if (items.length === 0 && step !== 'success') { router.push('/cart'); }
-  }, [isAuthenticated, items.length, router, step]);
+  }, [items.length, router, step]);
 
   /* ── Totals ── */
   const currencySubtotal = items.reduce((acc, item) => {
@@ -167,10 +167,11 @@ export default function CheckoutPage() {
   ═══════════════════════════════════════════════════ */
   if (step === 'success') {
     return (
-      <div className="min-h-screen flex flex-col bg-[#f8f8f8] font-['Satoshi']">
-        <Suspense fallback={<div className="h-20 bg-white" />}>
-          <StorefrontHeader />
-        </Suspense>
+      <ProtectedRoute>
+        <div className="min-h-screen flex flex-col bg-[#f8f8f8] font-['Satoshi']">
+          <Suspense fallback={<div className="h-20 bg-white" />}>
+            <StorefrontHeader />
+          </Suspense>
         <main className="flex-1 flex items-center justify-center px-4 py-16">
           <div className="w-full max-w-lg bg-white rounded-3xl p-8 sm:p-12 shadow-xl border border-gray-100 flex flex-col items-center gap-6 text-center">
             <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
@@ -227,16 +228,18 @@ export default function CheckoutPage() {
         </main>
         <StorefrontFooter />
       </div>
+    </ProtectedRoute>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#f8f8f8] font-['Satoshi']">
-      <Suspense fallback={<div className="h-20 bg-white" />}>
-        <StorefrontHeader />
-      </Suspense>
+    <ProtectedRoute>
+      <div className="min-h-screen flex flex-col bg-[#f8f8f8] font-['Satoshi']">
+        <Suspense fallback={<div className="h-20 bg-white" />}>
+          <StorefrontHeader />
+        </Suspense>
 
-      <main className="flex-1 w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-10 py-8 flex flex-col gap-6">
+        <main className="flex-1 w-full max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-10 py-8 flex flex-col gap-6">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-1.5 text-xs text-gray-400">
           <Link href="/" className="hover:text-black transition-colors">Home</Link>
@@ -475,5 +478,6 @@ export default function CheckoutPage() {
 
       <StorefrontFooter />
     </div>
+    </ProtectedRoute>
   );
 }

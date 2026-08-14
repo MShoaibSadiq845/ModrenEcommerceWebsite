@@ -9,10 +9,11 @@ import { RootState } from '@/store/store';
 import { logout } from '@/store/slices/authSlice';
 import { useGetNotificationsQuery, useMarkAsReadMutation } from '@/store/services/notificationsApi';
 import { ProfileDrawer } from '@/components/ProfileDrawer';
+import { ContactModal } from '@/components/storefront/ContactModal';
 import { useDebounce } from '@/hooks/useDebounce';
 import {
   ShoppingCart, User as UserIcon, LogOut, Award,
-  Search, X, ChevronDown, Bell, UserCog,
+  Search, X, ChevronDown, Bell, UserCog, Mail,
 } from 'lucide-react';
 
 export function StorefrontHeader() {
@@ -31,6 +32,7 @@ export function StorefrontHeader() {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
 
   const { data: notifications = [] } = useGetNotificationsQuery(undefined, { pollingInterval: 30000 });
   const [markAsRead] = useMarkAsReadMutation();
@@ -98,7 +100,12 @@ export function StorefrontHeader() {
                 onMouseLeave={() => setShowShopMenu(false)}
                 className="flex items-center gap-1 hover:text-black transition-colors py-1"
               >
-                Shop <ChevronDown className="w-4 h-4 text-gray-500" />
+                Shop
+                <ChevronDown
+                  className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${
+                    showShopMenu ? 'rotate-180' : 'rotate-0'
+                  }`}
+                />
               </button>
               {showShopMenu && (
                 <div
@@ -118,6 +125,13 @@ export function StorefrontHeader() {
             <Link href="/shop?isOnSale=true" className="hover:text-black transition-colors">On Sale</Link>
             <Link href="/shop?sort=newest" className="hover:text-black transition-colors">New Arrivals</Link>
             <Link href="/shop" className="hover:text-black transition-colors">Brands</Link>
+            <button
+              onClick={() => setContactOpen(true)}
+              className="flex items-center gap-1.5 hover:text-black transition-colors"
+            >
+              <Mail className="w-3.5 h-3.5" />
+              Contact Us
+            </button>
           </nav>
 
           {/* Search - Desktop (auto-search after 1s of typing) */}
@@ -308,6 +322,12 @@ export function StorefrontHeader() {
                     {label}
                   </Link>
                 ))}
+              <button
+                onClick={() => { setMobileMenuOpen(false); setContactOpen(true); }}
+                className="flex items-center gap-2 text-left px-3 py-2.5 text-sm font-medium text-gray-800 hover:bg-gray-50 rounded-xl"
+              >
+                <Mail className="w-4 h-4 text-gray-500" /> Contact Us
+              </button>
               {isAuthenticated && (
                 <button onClick={() => { setMobileMenuOpen(false); setProfileOpen(true); }}
                   className="text-left px-3 py-2.5 text-sm font-medium text-gray-800 hover:bg-gray-50 rounded-xl">
@@ -327,6 +347,9 @@ export function StorefrontHeader() {
 
       {/* ─── Profile drawer (outside header so it's above everything) ─── */}
       <ProfileDrawer open={profileOpen} onClose={() => setProfileOpen(false)} />
+
+      {/* ─── Contact Us modal ─── */}
+      <ContactModal open={contactOpen} onClose={() => setContactOpen(false)} />
     </>
   );
 }
