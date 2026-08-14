@@ -7,7 +7,7 @@ COPY tsconfig*.json ./
 COPY nest-cli.json ./
 COPY src ./src
 # Cache-bust: force full rebuild every deploy
-ARG CACHEBUST=1
+ARG CACHEBUST=20260814111645
 RUN npm run build
 RUN npm prune --production
 
