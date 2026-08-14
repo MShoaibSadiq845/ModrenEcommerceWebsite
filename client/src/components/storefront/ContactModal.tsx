@@ -28,10 +28,14 @@ export function ContactModal({ open, onClose }: Props) {
     formState: { errors },
   } = useForm<FormValues>({ defaultValues: { name: '', email: '', subject: '', message: '' } });
 
-  /* reset form each time modal opens */
+  /* reset form only when modal transitions from closed → open */
+  const prevOpenRef = React.useRef(false);
   useEffect(() => {
-    if (open) reset();
-  }, [open, reset]);
+    if (open && !prevOpenRef.current) {
+      reset({ name: '', email: '', subject: '', message: '' });
+    }
+    prevOpenRef.current = open;
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* close on Escape */
   useEffect(() => {
