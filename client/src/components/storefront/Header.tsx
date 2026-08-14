@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -11,6 +11,7 @@ import { useGetNotificationsQuery, useMarkAsReadMutation } from '@/store/service
 import { ProfileDrawer } from '@/components/ProfileDrawer';
 import { ContactModal } from '@/components/storefront/ContactModal';
 import { useDebounce } from '@/hooks/useDebounce';
+import { toast } from 'react-hot-toast';
 import {
   ShoppingCart, User as UserIcon, LogOut, Award,
   Search, X, ChevronDown, Bell, UserCog, Mail,
@@ -38,7 +39,6 @@ export function StorefrontHeader() {
   const [markAsRead] = useMarkAsReadMutation();
   const unreadCount = (notifications as any[]).filter((n) => !n.isRead).length;
 
-  // Auto-navigate to shop with debounced search after 1 second
   useEffect(() => {
     if (debouncedSearch.trim()) {
       const params = new URLSearchParams(searchParams.toString());
@@ -59,12 +59,42 @@ export function StorefrontHeader() {
     }
   };
 
+  /* â”€â”€ Auth-guard helper â€” shows toast and redirects if not logged in â”€â”€ */
+  const requireAuth = (action: () => void) => {
+    if (!isAuthenticated) {
+      toast.error('Please login first to continue.', { icon: 'ðŸ”’' });
+      router.push('/login');
+      return;
+    }
+    action();
+  };
+
+  /* â”€â”€ Nav link guard â€” used for href-based navigation â”€â”€ */
+  const handleNavLink = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    href: string,
+  ) => {
+    if (!isAuthenticated) {
+      e.preventDefault();
+      toast.error('Please login first to continue.', { icon: 'ðŸ”’' });
+      router.push('/login');
+    }
+  };
+
+  /* â”€â”€ Sign Out â”€â”€ */
+  const handleSignOut = () => {
+    dispatch(logout());
+    setShowUserDropdown(false);
+    toast.success('Logged out successfully. See you soon!', { icon: 'ðŸ‘‹' });
+    router.push('/login');
+  };
+
   const avatarUrl = (user as any)?.avatar || '';
 
   return (
     <>
       <header className="w-full flex flex-col items-center bg-white sticky top-0 z-50 shadow-[0_1px_0_0_#e5e7eb]">
-        {/* ─── Announcement banner ─── */}
+        {/* â”€â”€â”€ Announcement banner â”€â”€â”€ */}
         {showBanner && (
           <div className="w-full bg-black text-white py-2.5 px-4 flex items-center justify-center gap-4 text-xs sm:text-sm font-medium relative">
             <span className="text-center leading-snug">
@@ -77,7 +107,7 @@ export function StorefrontHeader() {
           </div>
         )}
 
-        {/* ─── Main nav ─── */}
+        {/* â”€â”€â”€ Main nav â”€â”€â”€ */}
         <div className="w-full max-w-[1440px] px-4 sm:px-6 lg:px-20 py-3 flex items-center justify-between gap-4">
           {/* Hamburger */}
           <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="lg:hidden flex flex-col gap-1.5 p-2">
@@ -92,12 +122,15 @@ export function StorefrontHeader() {
             SHOP.CO
           </Link>
 
-          {/* Desktop nav */}
+          {/* â”€â”€ Desktop nav â”€â”€ */}
           <nav className="hidden lg:flex items-center gap-6 text-sm font-medium text-gray-800">
-            <div className="relative group">
+
+            {/* Shop dropdown */}
+            <div className="relative">
               <button
-                onMouseEnter={() => setShowShopMenu(true)}
+                onMouseEnter={() => isAuthenticated ? setShowShopMenu(true) : undefined}
                 onMouseLeave={() => setShowShopMenu(false)}
+                onClick={() => requireAuth(() => setShowShopMenu(!showShopMenu))}
                 className="flex items-center gap-1 hover:text-black transition-colors py-1"
               >
                 Shop
@@ -107,7 +140,7 @@ export function StorefrontHeader() {
                   }`}
                 />
               </button>
-              {showShopMenu && (
+              {showShopMenu && isAuthenticated && (
                 <div
                   onMouseEnter={() => setShowShopMenu(true)}
                   onMouseLeave={() => setShowShopMenu(false)}
@@ -122,11 +155,33 @@ export function StorefrontHeader() {
                 </div>
               )}
             </div>
-            <Link href="/shop?isOnSale=true" className="hover:text-black transition-colors">On Sale</Link>
-            <Link href="/shop?sort=newest" className="hover:text-black transition-colors">New Arrivals</Link>
-            <Link href="/shop" className="hover:text-black transition-colors">Brands</Link>
+
+            <Link
+              href="/shop?isOnSale=true"
+              onClick={(e) => handleNavLink(e, '/shop?isOnSale=true')}
+              className="hover:text-black transition-colors"
+            >
+              On Sale
+            </Link>
+
+            <Link
+              href="/shop?sort=newest"
+              onClick={(e) => handleNavLink(e, '/shop?sort=newest')}
+              className="hover:text-black transition-colors"
+            >
+              New Arrivals
+            </Link>
+
+            <Link
+              href="/shop"
+              onClick={(e) => handleNavLink(e, '/shop')}
+              className="hover:text-black transition-colors"
+            >
+              Brands
+            </Link>
+
             <button
-              onClick={() => setContactOpen(true)}
+              onClick={() => requireAuth(() => setContactOpen(true))}
               className="flex items-center gap-1.5 hover:text-black transition-colors"
             >
               <Mail className="w-3.5 h-3.5" />
@@ -134,7 +189,7 @@ export function StorefrontHeader() {
             </button>
           </nav>
 
-          {/* Search - Desktop (auto-search after 1s of typing) */}
+          {/* Search - Desktop */}
           <div className="flex-1 max-w-[480px] hidden sm:block">
             <div className="relative">
               <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
@@ -157,7 +212,7 @@ export function StorefrontHeader() {
             </div>
           </div>
 
-          {/* Actions */}
+          {/* â”€â”€ Actions â”€â”€ */}
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Mobile search */}
             <button onClick={() => setMobileMenuOpen(true)} className="sm:hidden p-2 hover:bg-gray-100 rounded-full">
@@ -165,7 +220,11 @@ export function StorefrontHeader() {
             </button>
 
             {/* Cart */}
-            <Link href="/cart" className="relative p-2 hover:bg-gray-100 rounded-full transition-colors">
+            <Link
+              href="/cart"
+              onClick={(e) => handleNavLink(e, '/cart')}
+              className="relative p-2 hover:bg-gray-100 rounded-full transition-colors"
+            >
               <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6 text-gray-900" />
               {totalCartCount > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 bg-black text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
@@ -176,8 +235,10 @@ export function StorefrontHeader() {
 
             {/* Notifications */}
             <div className="relative hidden sm:block">
-              <button onClick={() => setShowNotifications(!showNotifications)}
-                className="relative p-2 hover:bg-gray-100 rounded-full transition-colors">
+              <button
+                onClick={() => requireAuth(() => setShowNotifications(!showNotifications))}
+                className="relative p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
                 <Bell className="w-5 h-5 sm:w-6 sm:h-6 text-gray-900" />
                 {unreadCount > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold animate-pulse">
@@ -217,10 +278,9 @@ export function StorefrontHeader() {
               )}
             </div>
 
-            {/* User */}
+            {/* User avatar / login icon */}
             {isAuthenticated && user ? (
               <div className="relative">
-                {/* Avatar button */}
                 <button
                   onClick={() => setShowUserDropdown(!showUserDropdown)}
                   className="w-8 h-8 rounded-full overflow-hidden bg-black text-white flex items-center justify-center font-bold text-sm hover:ring-2 hover:ring-black/20 transition-all"
@@ -253,7 +313,6 @@ export function StorefrontHeader() {
                       </div>
                     </div>
 
-                    {/* ── Edit Profile — opens drawer ── */}
                     <button
                       onClick={() => { setShowUserDropdown(false); setProfileOpen(true); }}
                       className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-gray-100 rounded-xl transition-colors text-gray-700 font-medium"
@@ -273,8 +332,9 @@ export function StorefrontHeader() {
                       </Link>
                     )}
 
+                    {/* â”€â”€ Sign Out with toast â”€â”€ */}
                     <button
-                      onClick={() => { dispatch(logout()); setShowUserDropdown(false); router.push('/login'); }}
+                      onClick={handleSignOut}
                       className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-red-50 text-red-600 rounded-xl transition-colors w-full mt-1 font-medium"
                     >
                       <LogOut className="w-4 h-4" /> Sign Out
@@ -290,10 +350,9 @@ export function StorefrontHeader() {
           </div>
         </div>
 
-        {/* ─── Mobile menu ─── */}
+        {/* â”€â”€â”€ Mobile menu â”€â”€â”€ */}
         {mobileMenuOpen && (
           <div className="lg:hidden w-full border-t border-gray-100 bg-white px-4 py-4 flex flex-col gap-4 animate-slide-up">
-            {/* Mobile search - also debounced */}
             <div className="relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               <input
@@ -304,36 +363,59 @@ export function StorefrontHeader() {
                 className="w-full bg-[#f0f0f0] rounded-full py-2.5 pl-9 pr-10 text-sm outline-none"
               />
               {searchQuery && (
-                <button
-                  type="button"
-                  onClick={clearSearch}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black"
-                >
+                <button type="button" onClick={clearSearch}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black">
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
+
             <nav className="flex flex-col gap-1">
-              {[{ href: '/shop', label: 'Shop' }, { href: '/shop?isOnSale=true', label: 'On Sale' },
-                { href: '/shop?sort=newest', label: 'New Arrivals' }, { href: '/shop', label: 'Brands' }]
-                .map(({ href, label }) => (
-                  <Link key={label} href={href} onClick={() => setMobileMenuOpen(false)}
-                    className="px-3 py-2.5 text-sm font-medium text-gray-800 hover:bg-gray-50 rounded-xl">
-                    {label}
-                  </Link>
-                ))}
+              {/* Mobile nav links â€” same auth guard */}
+              {[
+                { href: '/shop',              label: 'Shop' },
+                { href: '/shop?isOnSale=true', label: 'On Sale' },
+                { href: '/shop?sort=newest',   label: 'New Arrivals' },
+                { href: '/shop',              label: 'Brands' },
+              ].map(({ href, label }) => (
+                <Link
+                  key={label}
+                  href={href}
+                  onClick={(e) => {
+                    if (!isAuthenticated) {
+                      e.preventDefault();
+                      setMobileMenuOpen(false);
+                      toast.error('Please login first to continue.', { icon: 'ðŸ”’' });
+                      router.push('/login');
+                    } else {
+                      setMobileMenuOpen(false);
+                    }
+                  }}
+                  className="px-3 py-2.5 text-sm font-medium text-gray-800 hover:bg-gray-50 rounded-xl"
+                >
+                  {label}
+                </Link>
+              ))}
+
               <button
-                onClick={() => { setMobileMenuOpen(false); setContactOpen(true); }}
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  requireAuth(() => setContactOpen(true));
+                }}
                 className="flex items-center gap-2 text-left px-3 py-2.5 text-sm font-medium text-gray-800 hover:bg-gray-50 rounded-xl"
               >
                 <Mail className="w-4 h-4 text-gray-500" /> Contact Us
               </button>
+
               {isAuthenticated && (
-                <button onClick={() => { setMobileMenuOpen(false); setProfileOpen(true); }}
-                  className="text-left px-3 py-2.5 text-sm font-medium text-gray-800 hover:bg-gray-50 rounded-xl">
+                <button
+                  onClick={() => { setMobileMenuOpen(false); setProfileOpen(true); }}
+                  className="text-left px-3 py-2.5 text-sm font-medium text-gray-800 hover:bg-gray-50 rounded-xl"
+                >
                   Edit Profile
                 </button>
               )}
+
               {!isAuthenticated && (
                 <Link href="/login" onClick={() => setMobileMenuOpen(false)}
                   className="mt-2 px-4 py-2.5 bg-black text-white text-sm font-semibold rounded-full text-center">
@@ -345,11 +427,12 @@ export function StorefrontHeader() {
         )}
       </header>
 
-      {/* ─── Profile drawer (outside header so it's above everything) ─── */}
+      {/* â”€â”€â”€ Profile drawer â”€â”€â”€ */}
       <ProfileDrawer open={profileOpen} onClose={() => setProfileOpen(false)} />
 
-      {/* ─── Contact Us modal ─── */}
+      {/* â”€â”€â”€ Contact Us modal â”€â”€â”€ */}
       <ContactModal open={contactOpen} onClose={() => setContactOpen(false)} />
     </>
   );
 }
+
