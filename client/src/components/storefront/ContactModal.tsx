@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { X, Send, Loader2, Mail, User, MessageSquare, FileText } from 'lucide-react';
 import { useSubmitContactMutation } from '@/store/services/contactApi';
@@ -20,31 +20,37 @@ type FormValues = {
 
 export function ContactModal({ open, onClose }: Props) {
   const [submitContact, { isLoading }] = useSubmitContactMutation();
+  const hasOpenedOnce = useRef(false);
 
   const {
     register,
     handleSubmit,
     reset,
     formState: { errors },
-  } = useForm<FormValues>({ defaultValues: { name: '', email: '', subject: '', message: '' } });
+  } = useForm<FormValues>({
+    defaultValues: { name: '', email: '', subject: '', message: '' },
+  });
 
-  /* reset form only when modal transitions from closed → open */
-  const prevOpenRef = React.useRef(false);
+  /* Reset form only on the FIRST open, never while user is typing */
   useEffect(() => {
-    if (open && !prevOpenRef.current) {
+    if (open && !hasOpenedOnce.current) {
+      hasOpenedOnce.current = true;
       reset({ name: '', email: '', subject: '', message: '' });
     }
-    prevOpenRef.current = open;
+    if (!open) {
+      // Allow reset again next time it opens after being closed + submitted
+      hasOpenedOnce.current = false;
+    }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* close on Escape */
+  /* Close on Escape */
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    if (open) document.addEventListener('keydown', handler);
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape' && open) onClose(); };
+    document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [open, onClose]);
 
-  /* lock body scroll while open */
+  /* Lock body scroll while open */
   useEffect(() => {
     document.body.style.overflow = open ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
@@ -54,9 +60,10 @@ export function ContactModal({ open, onClose }: Props) {
     try {
       await submitContact(values).unwrap();
       toast.success("Message sent! We'll get back to you soon.");
+      reset({ name: '', email: '', subject: '', message: '' });
+      hasOpenedOnce.current = false;
       onClose();
     } catch (err: any) {
-      // Show the actual validation error from the server if available
       const serverMsg =
         err?.data?.message
           ? Array.isArray(err.data.message)
@@ -67,16 +74,21 @@ export function ContactModal({ open, onClose }: Props) {
     }
   };
 
-  if (!open) return null;
-
+  /* ── Always rendered, hidden via CSS when closed ── */
   return (
-    /* backdrop */
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      aria-modal="true"
+      role="dialog"
+      className={`fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm transition-opacity duration-200 ${
+        open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+      }`}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-fade-in">
-
+      <div
+        className={`w-full max-w-lg bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden transition-transform duration-200 ${
+          open ? 'scale-100' : 'scale-95'
+        }`}
+      >
         {/* ── Header ── */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-3">
@@ -112,12 +124,20 @@ export function ContactModal({ open, onClose }: Props) {
                 <input
                   type="text"
                   placeholder="John Doe"
-                  {...register('name', { required: 'Name is required', maxLength: { value: 100, message: 'Max 100 chars' } })}
-                  className={`w-full pl-9 pr-3 py-2.5 border rounded-xl text-sm outline-none transition-all font-medium
-                    ${errors.name ? 'border-red-400 bg-red-50 focus:ring-2 focus:ring-red-200' : 'border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-black/10 focus:border-black'}`}
+                  {...register('name', {
+                    required: 'Name is required',
+                    maxLength: { value: 100, message: 'Max 100 chars' },
+                  })}
+                  className={`w-full pl-9 pr-3 py-2.5 border rounded-xl text-sm outline-none transition-all font-medium ${
+                    errors.name
+                      ? 'border-red-400 bg-red-50 focus:ring-2 focus:ring-red-200'
+                      : 'border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-black/10 focus:border-black'
+                  }`}
                 />
               </div>
-              {errors.name && <span className="text-[10px] text-red-500 font-semibold">{errors.name.message}</span>}
+              {errors.name && (
+                <span className="text-[10px] text-red-500 font-semibold">{errors.name.message}</span>
+              )}
             </div>
 
             {/* Email */}
@@ -134,11 +154,16 @@ export function ContactModal({ open, onClose }: Props) {
                     required: 'Email is required',
                     pattern: { value: /^\S+@\S+\.\S+$/, message: 'Invalid email' },
                   })}
-                  className={`w-full pl-9 pr-3 py-2.5 border rounded-xl text-sm outline-none transition-all font-medium
-                    ${errors.email ? 'border-red-400 bg-red-50 focus:ring-2 focus:ring-red-200' : 'border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-black/10 focus:border-black'}`}
+                  className={`w-full pl-9 pr-3 py-2.5 border rounded-xl text-sm outline-none transition-all font-medium ${
+                    errors.email
+                      ? 'border-red-400 bg-red-50 focus:ring-2 focus:ring-red-200'
+                      : 'border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-black/10 focus:border-black'
+                  }`}
                 />
               </div>
-              {errors.email && <span className="text-[10px] text-red-500 font-semibold">{errors.email.message}</span>}
+              {errors.email && (
+                <span className="text-[10px] text-red-500 font-semibold">{errors.email.message}</span>
+              )}
             </div>
           </div>
 
@@ -152,12 +177,20 @@ export function ContactModal({ open, onClose }: Props) {
               <input
                 type="text"
                 placeholder="What is your query about?"
-                {...register('subject', { required: 'Subject is required', maxLength: { value: 200, message: 'Max 200 chars' } })}
-                className={`w-full pl-9 pr-3 py-2.5 border rounded-xl text-sm outline-none transition-all font-medium
-                  ${errors.subject ? 'border-red-400 bg-red-50 focus:ring-2 focus:ring-red-200' : 'border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-black/10 focus:border-black'}`}
+                {...register('subject', {
+                  required: 'Subject is required',
+                  maxLength: { value: 200, message: 'Max 200 chars' },
+                })}
+                className={`w-full pl-9 pr-3 py-2.5 border rounded-xl text-sm outline-none transition-all font-medium ${
+                  errors.subject
+                    ? 'border-red-400 bg-red-50 focus:ring-2 focus:ring-red-200'
+                    : 'border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-black/10 focus:border-black'
+                }`}
               />
             </div>
-            {errors.subject && <span className="text-[10px] text-red-500 font-semibold">{errors.subject.message}</span>}
+            {errors.subject && (
+              <span className="text-[10px] text-red-500 font-semibold">{errors.subject.message}</span>
+            )}
           </div>
 
           {/* Message */}
@@ -175,11 +208,16 @@ export function ContactModal({ open, onClose }: Props) {
                   minLength: { value: 10, message: 'At least 10 characters' },
                   maxLength: { value: 2000, message: 'Max 2000 chars' },
                 })}
-                className={`w-full pl-9 pr-3 py-2.5 border rounded-xl text-sm outline-none resize-none transition-all font-medium
-                  ${errors.message ? 'border-red-400 bg-red-50 focus:ring-2 focus:ring-red-200' : 'border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-black/10 focus:border-black'}`}
+                className={`w-full pl-9 pr-3 py-2.5 border rounded-xl text-sm outline-none resize-none transition-all font-medium ${
+                  errors.message
+                    ? 'border-red-400 bg-red-50 focus:ring-2 focus:ring-red-200'
+                    : 'border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-black/10 focus:border-black'
+                }`}
               />
             </div>
-            {errors.message && <span className="text-[10px] text-red-500 font-semibold">{errors.message.message}</span>}
+            {errors.message && (
+              <span className="text-[10px] text-red-500 font-semibold">{errors.message.message}</span>
+            )}
           </div>
 
           {/* Actions */}
