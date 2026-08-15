@@ -8,6 +8,8 @@ import {
   Param,
   UseGuards,
   NotFoundException,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -25,19 +27,24 @@ export class CouponsController {
 
   // ── Public: validate a coupon code ──────────────────────────────────────
   @Get('validate/:code')
+  @HttpCode(HttpStatus.OK)
   async validateCoupon(@Param('code') code: string) {
-    const coupon = await this.couponModel.findOne({
-      code: code.toUpperCase().trim(),
-      isActive: true,
-    });
-    if (!coupon) {
-      return { valid: false, message: 'Invalid or expired coupon code' };
+    try {
+      const coupon = await this.couponModel.findOne({
+        code: code.toUpperCase().trim(),
+        isActive: true,
+      });
+      if (!coupon) {
+        return { valid: false, message: 'Invalid or expired coupon code' };
+      }
+      return {
+        valid: true,
+        code: coupon.code,
+        discountPercentage: coupon.discountPercentage,
+      };
+    } catch {
+      return { valid: false, message: 'Failed to validate coupon. Please try again.' };
     }
-    return {
-      valid: true,
-      code: coupon.code,
-      discountPercentage: coupon.discountPercentage,
-    };
   }
 
   // ── Admin-only routes (jwt + global RolesGuard) ──────────────────────────
@@ -45,6 +52,7 @@ export class CouponsController {
   @Get()
   @UseGuards(AuthGuard('jwt'))
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @HttpCode(HttpStatus.OK)
   async getAllCoupons() {
     return this.couponModel.find().sort({ createdAt: -1 }).exec();
   }
@@ -52,6 +60,7 @@ export class CouponsController {
   @Post()
   @UseGuards(AuthGuard('jwt'))
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @HttpCode(HttpStatus.CREATED)
   async createCoupon(@Body() dto: CreateCouponDto) {
     return this.couponModel.create({
       code: dto.code.toUpperCase().trim(),
@@ -63,6 +72,7 @@ export class CouponsController {
   @Put(':id/toggle')
   @UseGuards(AuthGuard('jwt'))
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @HttpCode(HttpStatus.OK)
   async toggleCoupon(@Param('id') id: string) {
     const coupon = await this.couponModel.findById(id);
     if (!coupon) throw new NotFoundException('Coupon not found');
@@ -74,6 +84,7 @@ export class CouponsController {
   @Delete(':id')
   @UseGuards(AuthGuard('jwt'))
   @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  @HttpCode(HttpStatus.OK)
   async deleteCoupon(@Param('id') id: string) {
     const coupon = await this.couponModel.findByIdAndDelete(id);
     if (!coupon) throw new NotFoundException('Coupon not found');

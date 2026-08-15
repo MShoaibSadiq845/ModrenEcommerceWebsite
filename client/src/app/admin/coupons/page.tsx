@@ -10,7 +10,10 @@ import {
 } from '@/store/services/couponsApi';
 import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton';
 import { PageLoader } from '@/components/ui/PageLoader';
-import { Tag, PlusCircle, Trash2, ToggleLeft, ToggleRight, CheckCircle, XCircle, X } from 'lucide-react';
+import {
+  Tag, PlusCircle, Trash2, ToggleLeft, ToggleRight,
+  CheckCircle, XCircle, X, Loader2,
+} from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 type CouponFormInputs = {
@@ -19,13 +22,19 @@ type CouponFormInputs = {
 };
 
 export default function AdminCouponsPage() {
-  const { data: coupons = [], isLoading } = useGetAllCouponsQuery(undefined);
+  const { data: coupons = [], isLoading } = useGetAllCouponsQuery(undefined, {
+    refetchOnMountOrArgChange: true,
+  });
   const [createCoupon, { isLoading: creating }] = useCreateCouponMutation();
   const [toggleCoupon] = useToggleCouponMutation();
   const [deleteCoupon] = useDeleteCouponMutation();
 
   const [showForm, setShowForm] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+  // Per-row loading trackers
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const {
     register,
@@ -52,21 +61,27 @@ export default function AdminCouponsPage() {
   };
 
   const handleToggle = async (id: string, code: string, isActive: boolean) => {
+    setTogglingId(id);
     try {
       await toggleCoupon(id).unwrap();
       toast.success(`Coupon "${code}" ${isActive ? 'deactivated' : 'activated'}`);
-    } catch {
-      toast.error('Failed to toggle coupon');
+    } catch (err: any) {
+      toast.error(err?.data?.message || 'Failed to toggle coupon');
+    } finally {
+      setTogglingId(null);
     }
   };
 
   const handleDelete = async (id: string) => {
+    setDeletingId(id);
     try {
       await deleteCoupon(id).unwrap();
       toast.success('Coupon deleted');
       setConfirmDelete(null);
-    } catch {
-      toast.error('Failed to delete coupon');
+    } catch (err: any) {
+      toast.error(err?.data?.message || 'Failed to delete coupon');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -93,7 +108,7 @@ export default function AdminCouponsPage() {
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
           <p className="text-xs text-gray-500 font-semibold">Total Coupons</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{coupons.length}</p>
+          <p className="text-2xl font-bold text-gray-900 mt-1">{(coupons as any[]).length}</p>
         </div>
         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
           <p className="text-xs text-gray-500 font-semibold">Active</p>
@@ -109,9 +124,7 @@ export default function AdminCouponsPage() {
         </div>
       </div>
 
-      {isLoading ? (
-        <TableSkeleton rows={5} />
-      ) : coupons.length === 0 ? (
+      {(coupons as any[]).length === 0 ? (
         <div className="bg-white rounded-2xl p-12 text-center flex flex-col items-center gap-3">
           <Tag className="w-10 h-10 text-gray-200" />
           <p className="text-gray-400 text-sm font-semibold">No coupons created yet</p>
@@ -135,65 +148,81 @@ export default function AdminCouponsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 font-semibold text-gray-700">
-              {(coupons as any[]).map((coupon) => (
-                <tr key={coupon._id} className="hover:bg-gray-50 transition-all">
-                  <td className="py-4">
-                    <div className="flex items-center gap-2">
-                      <Tag className="w-4 h-4 text-gray-400" />
-                      <span className="font-bold text-black font-mono text-sm">{coupon.code}</span>
-                    </div>
-                  </td>
-                  <td className="py-4 text-center">
-                    <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-green-50 text-green-700 text-xs font-bold">
-                      {coupon.discountPercentage}% OFF
-                    </span>
-                  </td>
-                  <td className="py-4 text-center">
-                    <span
-                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                        coupon.isActive
-                          ? 'bg-green-50 text-green-700 border border-green-200'
-                          : 'bg-gray-100 text-gray-500 border border-gray-200'
-                      }`}
-                    >
-                      {coupon.isActive ? (
-                        <><CheckCircle className="w-3 h-3" /> Active</>
-                      ) : (
-                        <><XCircle className="w-3 h-3" /> Inactive</>
-                      )}
-                    </span>
-                  </td>
-                  <td className="py-4 text-gray-400">
-                    {coupon.createdAt ? new Date(coupon.createdAt).toLocaleDateString() : '—'}
-                  </td>
-                  <td className="py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => handleToggle(coupon._id, coupon.code, coupon.isActive)}
-                        className={`p-1.5 rounded-lg transition-all ${
+              {(coupons as any[]).map((coupon) => {
+                const isToggling = togglingId === coupon._id;
+                const isCurrentlyDeleting = deletingId === coupon._id;
+
+                return (
+                  <tr key={coupon._id} className="hover:bg-gray-50 transition-all">
+                    <td className="py-4">
+                      <div className="flex items-center gap-2">
+                        <Tag className="w-4 h-4 text-gray-400" />
+                        <span className="font-bold text-black font-mono text-sm">{coupon.code}</span>
+                      </div>
+                    </td>
+                    <td className="py-4 text-center">
+                      <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-green-50 text-green-700 text-xs font-bold">
+                        {coupon.discountPercentage}% OFF
+                      </span>
+                    </td>
+                    <td className="py-4 text-center">
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold ${
                           coupon.isActive
-                            ? 'bg-amber-50 hover:bg-amber-100 text-amber-600'
-                            : 'bg-green-50 hover:bg-green-100 text-green-600'
+                            ? 'bg-green-50 text-green-700 border border-green-200'
+                            : 'bg-gray-100 text-gray-500 border border-gray-200'
                         }`}
-                        title={coupon.isActive ? 'Deactivate' : 'Activate'}
                       >
                         {coupon.isActive ? (
-                          <ToggleRight className="w-4 h-4" />
+                          <><CheckCircle className="w-3 h-3" /> Active</>
                         ) : (
-                          <ToggleLeft className="w-4 h-4" />
+                          <><XCircle className="w-3 h-3" /> Inactive</>
                         )}
-                      </button>
-                      <button
-                        onClick={() => setConfirmDelete(coupon._id)}
-                        className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-all"
-                        title="Delete coupon"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                      </span>
+                    </td>
+                    <td className="py-4 text-gray-400">
+                      {coupon.createdAt ? new Date(coupon.createdAt).toLocaleDateString() : '—'}
+                    </td>
+                    <td className="py-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {/* Toggle button */}
+                        <button
+                          onClick={() => handleToggle(coupon._id, coupon.code, coupon.isActive)}
+                          disabled={isToggling}
+                          className={`p-1.5 rounded-lg transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
+                            coupon.isActive
+                              ? 'bg-amber-50 hover:bg-amber-100 text-amber-600'
+                              : 'bg-green-50 hover:bg-green-100 text-green-600'
+                          }`}
+                          title={coupon.isActive ? 'Deactivate' : 'Activate'}
+                        >
+                          {isToggling ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : coupon.isActive ? (
+                            <ToggleRight className="w-4 h-4" />
+                          ) : (
+                            <ToggleLeft className="w-4 h-4" />
+                          )}
+                        </button>
+
+                        {/* Delete button */}
+                        <button
+                          onClick={() => setConfirmDelete(coupon._id)}
+                          disabled={isCurrentlyDeleting}
+                          className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                          title="Delete coupon"
+                        >
+                          {isCurrentlyDeleting ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -279,9 +308,13 @@ export default function AdminCouponsPage() {
                 <button
                   type="submit"
                   disabled={creating}
-                  className="flex-1 py-3 bg-black hover:bg-gray-800 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50"
+                  className="flex-1 py-3 bg-black hover:bg-gray-800 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {creating ? 'Creating...' : 'Create Coupon'}
+                  {creating ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Creating...</>
+                  ) : (
+                    'Create Coupon'
+                  )}
                 </button>
               </div>
             </form>
@@ -305,15 +338,21 @@ export default function AdminCouponsPage() {
             <div className="flex gap-3">
               <button
                 onClick={() => setConfirmDelete(null)}
-                className="flex-1 py-3 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50"
+                disabled={deletingId === confirmDelete}
+                className="flex-1 py-3 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
               >
                 Cancel
               </button>
               <button
                 onClick={() => handleDelete(confirmDelete)}
-                className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold"
+                disabled={deletingId === confirmDelete}
+                className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Delete
+                {deletingId === confirmDelete ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Deleting...</>
+                ) : (
+                  'Delete'
+                )}
               </button>
             </div>
           </div>

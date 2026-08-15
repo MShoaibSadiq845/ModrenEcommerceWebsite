@@ -2,6 +2,7 @@ import {
   Controller, Get, Put, Delete, Post,
   Body, Param, UseGuards, Inject,
   UseInterceptors, UploadedFile, Query,
+  HttpCode, HttpStatus, BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthGuard } from '@nestjs/passport';
@@ -26,6 +27,7 @@ export class UsersController {
 
   @Get()
   @UseGuards(RoleGuard(UserRole.ADMIN, UserRole.SUPER_ADMIN))
+  @HttpCode(HttpStatus.OK)
   getAllUsers(@Query() query: PaginationQueryDto) {
     const page = query.page || 1;
     const limit = query.limit || 20;
@@ -35,12 +37,13 @@ export class UsersController {
   // ── Any authenticated user ─────────────────────────────────────────────────
 
   @Get('loyalty-points')
+  @HttpCode(HttpStatus.OK)
   getLoyaltyPoints(@GetUser('_id') userId: string) {
     return this.usersService.getLoyaltyPoints(userId);
   }
 
-  // Update display name, phone
   @Put('profile')
+  @HttpCode(HttpStatus.OK)
   updateProfile(
     @GetUser('_id') userId: string,
     @Body() dto: UpdateProfileDto,
@@ -48,20 +51,29 @@ export class UsersController {
     return this.usersService.updateProfile(userId, dto);
   }
 
-  // Upload avatar image → Cloudinary → save URL to DB
   @Post('avatar')
+  @HttpCode(HttpStatus.OK)
   @UseInterceptors(FileInterceptor('file'))
   async uploadAvatar(
     @GetUser('_id') userId: string,
     @UploadedFile() file: any,
   ) {
-    const result = await this.cloudinaryService.uploadFile(file);
-    const url = (result as any).secure_url;
-    return this.usersService.updateProfile(userId, { avatar: url });
+    if (!file) {
+      throw new BadRequestException('No file uploaded. Field name must be "file".');
+    }
+    try {
+      const result = await this.cloudinaryService.uploadFile(file);
+      const url = (result as any).secure_url;
+      return this.usersService.updateProfile(userId, { avatar: url });
+    } catch (err: any) {
+      throw new BadRequestException(
+        err?.message || 'Failed to upload avatar. Please try again.',
+      );
+    }
   }
 
-  // Save / update delivery address
   @Put('shipping-address')
+  @HttpCode(HttpStatus.OK)
   updateShipping(
     @GetUser('_id') userId: string,
     @Body() dto: UpdateShippingDto,
@@ -73,12 +85,14 @@ export class UsersController {
 
   @Put(':id/role')
   @UseGuards(RoleGuard(UserRole.SUPER_ADMIN))
+  @HttpCode(HttpStatus.OK)
   updateUserRole(@Param('id') id: string, @Body('role') role: UserRole) {
     return this.usersService.updateRole(id, role);
   }
 
   @Delete(':id')
   @UseGuards(RoleGuard(UserRole.SUPER_ADMIN))
+  @HttpCode(HttpStatus.OK)
   deleteUser(@Param('id') id: string) {
     return this.usersService.deleteUser(id);
   }
@@ -86,6 +100,7 @@ export class UsersController {
   // ── Parameterised — keep LAST to avoid shadowing static routes ────────────
 
   @Get(':id')
+  @HttpCode(HttpStatus.OK)
   getUserById(@Param('id') id: string) {
     return this.usersService.findById(id);
   }

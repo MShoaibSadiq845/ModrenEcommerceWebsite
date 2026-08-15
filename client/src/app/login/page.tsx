@@ -10,6 +10,7 @@ import { setCredentials } from '@/store/slices/authSlice';
 import { StorefrontHeader } from '@/components/storefront/Header';
 import { StorefrontFooter } from '@/components/storefront/Footer';
 import { toast } from 'react-hot-toast';
+import { Loader2 } from 'lucide-react';
 
 type LoginFormInputs = {
   email: string;
@@ -119,9 +120,13 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-black text-white font-bold py-3.5 rounded-full text-sm hover:bg-gray-800 transition-all mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-black text-white font-bold py-3.5 rounded-full text-sm hover:bg-gray-800 transition-all mt-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {isLoading ? 'Signing in...' : 'Sign In'}
+              {isLoading ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Signing in...</>
+              ) : (
+                'Sign In'
+              )}
             </button>
           </form>
 

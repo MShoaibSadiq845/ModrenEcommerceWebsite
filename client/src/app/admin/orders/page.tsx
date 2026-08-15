@@ -9,7 +9,7 @@ import {
 } from '@/store/services/ordersApi';
 import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton';
 import { PageLoader } from '@/components/ui/PageLoader';
-import { Eye, Clock, CheckCircle2, Truck, XCircle, Award, Package } from 'lucide-react';
+import { Eye, Clock, CheckCircle2, Truck, XCircle, Award, Package, Loader2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 const STATUS_STYLES: Record<string, string> = {
@@ -20,19 +20,14 @@ const STATUS_STYLES: Record<string, string> = {
   Canceled:   'bg-red-50 text-red-700 border-red-200',
 };
 
-const STATUS_ICONS: Record<string, React.ReactNode> = {
-  Pending:    <Clock className="w-3 h-3" />,
-  Processing: <Clock className="w-3 h-3" />,
-  Shipped:    <Truck className="w-3 h-3" />,
-  Delivered:  <CheckCircle2 className="w-3 h-3" />,
-  Canceled:   <XCircle className="w-3 h-3" />,
-};
-
 function UserAvatar({ user }: { user: any }) {
-  if (!user) return (
-    <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center text-gray-400 font-bold text-sm shrink-0">?</div>
-  );
-
+  if (!user) {
+    return (
+      <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center text-gray-400 font-bold text-sm shrink-0">
+        ?
+      </div>
+    );
+  }
   if (user.avatar) {
     return (
       <div className="relative w-9 h-9 rounded-xl overflow-hidden shrink-0 border border-gray-200">
@@ -40,11 +35,9 @@ function UserAvatar({ user }: { user: any }) {
       </div>
     );
   }
-
   const initial = (user.name || user.email || '?').charAt(0).toUpperCase();
   const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-amber-500', 'bg-red-500', 'bg-indigo-500'];
   const colorIdx = (user.name || '').charCodeAt(0) % colors.length;
-
   return (
     <div className={`w-9 h-9 rounded-xl ${colors[colorIdx]} text-white flex items-center justify-center font-bold text-sm shrink-0`}>
       {initial}
@@ -54,15 +47,24 @@ function UserAvatar({ user }: { user: any }) {
 
 export default function AdminOrdersPage() {
   const [selectedStatus, setSelectedStatus] = useState('');
-  const { data: orders = [], isLoading } = useGetAllOrdersQuery(selectedStatus || undefined);
+  const { data: orders = [], isLoading } = useGetAllOrdersQuery(
+    selectedStatus || undefined,
+    { refetchOnMountOrArgChange: true },
+  );
   const [updateOrderStatus] = useUpdateOrderStatusMutation();
 
+  // Track which order row is being updated
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+
   const handleStatusChange = async (id: string, newStatus: string) => {
+    setUpdatingStatusId(id);
     try {
       await updateOrderStatus({ id, status: newStatus }).unwrap();
       toast.success(`Order status updated to ${newStatus}`);
-    } catch {
-      toast.error('Failed to update order status');
+    } catch (err: any) {
+      toast.error(err?.data?.message || 'Failed to update order status');
+    } finally {
+      setUpdatingStatusId(null);
     }
   };
 
@@ -79,7 +81,9 @@ export default function AdminOrdersPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Order Management</h1>
-          <p className="text-xs text-gray-400 font-['Open_Sans']">View customer orders, avatars and update statuses in real-time</p>
+          <p className="text-xs text-gray-400 font-['Open_Sans']">
+            View customer orders and update statuses in real-time
+          </p>
         </div>
         <select
           value={selectedStatus}
@@ -87,31 +91,31 @@ export default function AdminOrdersPage() {
           className="bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-black w-fit"
         >
           <option value="">All Statuses</option>
-          {['Pending','Processing','Shipped','Delivered','Canceled'].map(s => (
-            <option key={s} value={s}>{s} {statusCounts[s] ? `(${statusCounts[s]})` : ''}</option>
+          {['Pending', 'Processing', 'Shipped', 'Delivered', 'Canceled'].map((s) => (
+            <option key={s} value={s}>
+              {s} {statusCounts[s] ? `(${statusCounts[s]})` : ''}
+            </option>
           ))}
         </select>
       </div>
 
       {/* Quick stats */}
-      {!isLoading && (
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-          {['Pending','Processing','Shipped','Delivered','Canceled'].map((s) => (
-            <button
-              key={s}
-              onClick={() => setSelectedStatus(selectedStatus === s ? '' : s)}
-              className={`flex flex-col gap-1 p-3 rounded-2xl border text-left transition-all ${
-                selectedStatus === s
-                  ? 'border-black bg-black text-white'
-                  : `${STATUS_STYLES[s] || 'bg-gray-50 border-gray-100'} hover:scale-[1.02]`
-              }`}
-            >
-              <span className="text-xs font-semibold opacity-70">{s}</span>
-              <span className="text-xl font-extrabold">{statusCounts[s] || 0}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        {['Pending', 'Processing', 'Shipped', 'Delivered', 'Canceled'].map((s) => (
+          <button
+            key={s}
+            onClick={() => setSelectedStatus(selectedStatus === s ? '' : s)}
+            className={`flex flex-col gap-1 p-3 rounded-2xl border text-left transition-all ${
+              selectedStatus === s
+                ? 'border-black bg-black text-white'
+                : `${STATUS_STYLES[s] || 'bg-gray-50 border-gray-100'} hover:scale-[1.02]`
+            }`}
+          >
+            <span className="text-xs font-semibold opacity-70">{s}</span>
+            <span className="text-xl font-extrabold">{statusCounts[s] || 0}</span>
+          </button>
+        ))}
+      </div>
 
       {isLoading ? (
         <TableSkeleton rows={8} />
@@ -136,68 +140,78 @@ export default function AdminOrdersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50 font-semibold text-gray-700">
-              {(orders as any[]).map((order: any) => (
-                <tr key={order._id} className="hover:bg-gray-50 transition-all">
-                  <td className="px-5 py-4 font-bold text-black font-mono">
-                    #{order._id.slice(-6)}
-                  </td>
+              {(orders as any[]).map((order: any) => {
+                const isUpdating = updatingStatusId === order._id;
+                return (
+                  <tr key={order._id} className="hover:bg-gray-50 transition-all">
+                    <td className="px-5 py-4 font-bold text-black font-mono">
+                      #{order._id.slice(-6)}
+                    </td>
 
-                  {/* Customer with avatar */}
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-2.5">
-                      <UserAvatar user={order.user} />
-                      <div className="flex flex-col min-w-0">
-                        <span className="font-bold text-gray-900 truncate max-w-[100px]">
-                          {order.user?.name || 'Guest'}
-                        </span>
-                        <span className="text-[10px] text-gray-400 truncate max-w-[100px]">
-                          {order.user?.email || '—'}
-                        </span>
+                    {/* Customer with avatar */}
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-2.5">
+                        <UserAvatar user={order.user} />
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-bold text-gray-900 truncate max-w-[100px]">
+                            {order.user?.name || 'Guest'}
+                          </span>
+                          <span className="text-[10px] text-gray-400 truncate max-w-[100px]">
+                            {order.user?.email || '—'}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  </td>
+                    </td>
 
-                  <td className="px-5 py-4 text-gray-500">
-                    {order.items?.length} item{order.items?.length !== 1 ? 's' : ''}
-                  </td>
+                    <td className="px-5 py-4 text-gray-500">
+                      {order.items?.length} item{order.items?.length !== 1 ? 's' : ''}
+                    </td>
 
-                  <td className="px-5 py-4 text-gray-500">
-                    {new Date(order.createdAt).toLocaleDateString()}
-                  </td>
+                    <td className="px-5 py-4 text-gray-500">
+                      {new Date(order.createdAt).toLocaleDateString()}
+                    </td>
 
-                  <td className="px-5 py-4 font-extrabold text-black">${order.totalAmount}</td>
+                    <td className="px-5 py-4 font-extrabold text-black">${order.totalAmount}</td>
 
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-1 text-amber-600 font-bold text-[10px]">
-                      <Award className="w-3 h-3" />
-                      +{order.pointsEarned || 0} / -{order.pointsUsed || 0}
-                    </div>
-                  </td>
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-1 text-amber-600 font-bold text-[10px]">
+                        <Award className="w-3 h-3" />
+                        +{order.pointsEarned || 0} / -{order.pointsUsed || 0}
+                      </div>
+                    </td>
 
-                  <td className="px-5 py-4">
-                    <select
-                      value={order.status}
-                      onChange={(e) => handleStatusChange(order._id, e.target.value)}
-                      className={`border rounded-xl px-2.5 py-1.5 text-xs font-bold outline-none focus:ring-2 focus:ring-black transition-all ${
-                        STATUS_STYLES[order.status] || 'bg-gray-100'
-                      }`}
-                    >
-                      {['Pending','Processing','Shipped','Delivered','Canceled'].map(s => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                  </td>
+                    {/* Status dropdown with per-row loading */}
+                    <td className="px-5 py-4">
+                      <div className="relative inline-flex items-center gap-2">
+                        <select
+                          value={order.status}
+                          onChange={(e) => handleStatusChange(order._id, e.target.value)}
+                          disabled={isUpdating}
+                          className={`border rounded-xl px-2.5 py-1.5 text-xs font-bold outline-none focus:ring-2 focus:ring-black transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
+                            STATUS_STYLES[order.status] || 'bg-gray-100'
+                          }`}
+                        >
+                          {['Pending', 'Processing', 'Shipped', 'Delivered', 'Canceled'].map((s) => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                        {isUpdating && (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-500 shrink-0" />
+                        )}
+                      </div>
+                    </td>
 
-                  <td className="px-5 py-4 text-right">
-                    <Link
-                      href={`/admin/orders/${order._id}`}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-black hover:text-white rounded-xl text-xs font-bold transition-all"
-                    >
-                      <Eye className="w-3.5 h-3.5" /> Details
-                    </Link>
-                  </td>
-                </tr>
-              ))}
+                    <td className="px-5 py-4 text-right">
+                      <Link
+                        href={`/admin/orders/${order._id}`}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-black hover:text-white rounded-xl text-xs font-bold transition-all"
+                      >
+                        <Eye className="w-3.5 h-3.5" /> Details
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

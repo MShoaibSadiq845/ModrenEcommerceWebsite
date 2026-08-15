@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Mail, Trash2, Search, Users, RefreshCw } from 'lucide-react';
+import { Mail, Trash2, Search, Users, RefreshCw, Loader2, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import {
   useGetSubscribersQuery,
@@ -13,21 +13,31 @@ import {
 export default function AdminNewsletterPage() {
   const [search, setSearch] = useState('');
 
-  const { data: subscribers = [], isLoading, refetch } = useGetSubscribersQuery();
+  const { data: subscribers = [], isLoading, refetch, isFetching } = useGetSubscribersQuery(
+    undefined,
+    { refetchOnMountOrArgChange: true },
+  );
   const { data: countData } = useGetSubscriberCountQuery();
   const [deleteSubscriber] = useDeleteSubscriberMutation();
 
+  // Per-row delete loading + modal state
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; email: string } | null>(null);
+
   const filtered = subscribers.filter((s) =>
-    s.email.toLowerCase().includes(search.toLowerCase())
+    s.email.toLowerCase().includes(search.toLowerCase()),
   );
 
-  const handleDelete = async (id: string, email: string) => {
-    if (!confirm(`Remove ${email} from newsletter?`)) return;
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
     try {
       await deleteSubscriber(id).unwrap();
-      toast.success(`${email} removed.`);
-    } catch {
-      toast.error('Failed to remove subscriber.');
+      toast.success('Subscriber removed.');
+      setConfirmDelete(null);
+    } catch (err: any) {
+      toast.error(err?.data?.message || 'Failed to remove subscriber.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -37,17 +47,25 @@ export default function AdminNewsletterPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Newsletter Subscribers</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Emails collected from the newsletter subscription form</p>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Emails collected from the newsletter subscription form
+          </p>
         </div>
         <button
           onClick={() => refetch()}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all"
+          disabled={isFetching}
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all disabled:opacity-60"
         >
-          <RefreshCw className="w-4 h-4" /> Refresh
+          {isFetching ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <RefreshCw className="w-4 h-4" />
+          )}
+          Refresh
         </button>
       </div>
 
-      {/* Stats card */}
+      {/* Stats cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="bg-white border border-gray-100 rounded-2xl p-5 flex items-center gap-4 shadow-sm">
           <div className="w-12 h-12 bg-black rounded-xl flex items-center justify-center shrink-0">
@@ -55,7 +73,9 @@ export default function AdminNewsletterPage() {
           </div>
           <div>
             <p className="text-xs text-gray-500 font-medium">Total Subscribers</p>
-            <p className="text-3xl font-bold text-gray-900">{countData?.count ?? subscribers.length}</p>
+            <p className="text-3xl font-bold text-gray-900">
+              {countData?.count ?? subscribers.length}
+            </p>
           </div>
         </div>
         <div className="bg-white border border-gray-100 rounded-2xl p-5 flex items-center gap-4 shadow-sm">
@@ -64,7 +84,9 @@ export default function AdminNewsletterPage() {
           </div>
           <div>
             <p className="text-xs text-gray-500 font-medium">Active Subscriptions</p>
-            <p className="text-3xl font-bold text-green-600">{subscribers.filter(s => s.active).length}</p>
+            <p className="text-3xl font-bold text-green-600">
+              {subscribers.filter((s) => s.active).length}
+            </p>
           </div>
         </div>
       </div>
@@ -84,12 +106,16 @@ export default function AdminNewsletterPage() {
       {/* Table */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         {isLoading ? (
-          <div className="p-10 flex items-center justify-center text-gray-400 text-sm">Loading…</div>
+          <div className="p-10 flex items-center justify-center text-gray-400 text-sm gap-2">
+            <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+          </div>
         ) : filtered.length === 0 ? (
           <div className="p-10 flex flex-col items-center gap-2 text-center">
             <Mail className="w-8 h-8 text-gray-300" />
             <p className="text-sm font-bold text-gray-500">No subscribers yet</p>
-            <p className="text-xs text-gray-400">Emails submitted via the newsletter form will appear here.</p>
+            <p className="text-xs text-gray-400">
+              Emails submitted via the newsletter form will appear here.
+            </p>
           </div>
         ) : (
           <table className="w-full text-sm">
@@ -103,46 +129,100 @@ export default function AdminNewsletterPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filtered.map((sub: NewsletterSubscriber, idx) => (
-                <tr key={sub._id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-5 py-3.5 text-gray-400 text-xs">{idx + 1}</td>
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full bg-black text-white flex items-center justify-center text-xs font-bold shrink-0">
-                        {sub.email[0].toUpperCase()}
+              {filtered.map((sub: NewsletterSubscriber, idx) => {
+                const isCurrentlyDeleting = deletingId === sub._id;
+                return (
+                  <tr key={sub._id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-5 py-3.5 text-gray-400 text-xs">{idx + 1}</td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-black text-white flex items-center justify-center text-xs font-bold shrink-0">
+                          {sub.email[0].toUpperCase()}
+                        </div>
+                        <span className="font-medium text-gray-800">{sub.email}</span>
                       </div>
-                      <span className="font-medium text-gray-800">{sub.email}</span>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${
-                      sub.active
-                        ? 'bg-green-50 text-green-700 border-green-200'
-                        : 'bg-gray-100 text-gray-500 border-gray-200'
-                    }`}>
-                      {sub.active ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5 text-xs text-gray-500">
-                    {new Date(sub.createdAt).toLocaleDateString('en-US', {
-                      month: 'short', day: 'numeric', year: 'numeric',
-                    })}
-                  </td>
-                  <td className="px-5 py-3.5 text-right">
-                    <button
-                      onClick={() => handleDelete(sub._id, sub.email)}
-                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                      title="Remove subscriber"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span
+                        className={`px-2.5 py-1 rounded-full text-xs font-bold border ${
+                          sub.active
+                            ? 'bg-green-50 text-green-700 border-green-200'
+                            : 'bg-gray-100 text-gray-500 border-gray-200'
+                        }`}
+                      >
+                        {sub.active ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-xs text-gray-500">
+                      {new Date(sub.createdAt).toLocaleDateString('en-US', {
+                        month: 'short', day: 'numeric', year: 'numeric',
+                      })}
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      <button
+                        onClick={() => setConfirmDelete({ id: sub._id, email: sub.email })}
+                        disabled={isCurrentlyDeleting}
+                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                        title="Remove subscriber"
+                      >
+                        {isCurrentlyDeleting ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {confirmDelete && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full flex flex-col gap-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="font-bold text-base text-gray-900 flex items-center gap-2">
+                <Trash2 className="w-4 h-4 text-red-600" /> Remove Subscriber
+              </h3>
+              <button
+                onClick={() => setConfirmDelete(null)}
+                disabled={deletingId === confirmDelete.id}
+                className="text-gray-400 hover:text-black disabled:opacity-60"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-600">
+              Remove <strong className="text-gray-900">{confirmDelete.email}</strong> from the newsletter list?
+              This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmDelete(null)}
+                disabled={deletingId === confirmDelete.id}
+                className="flex-1 py-3 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50 transition-all disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDelete(confirmDelete.id)}
+                disabled={deletingId === confirmDelete.id}
+                className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+              >
+                {deletingId === confirmDelete.id ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Removing...</>
+                ) : (
+                  'Remove'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

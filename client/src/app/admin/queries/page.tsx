@@ -17,12 +17,14 @@ import {
 /* ── Status badge ── */
 function StatusBadge({ status }: { status: ContactMessage['status'] }) {
   const map = {
-    unread:  { cls: 'bg-red-50 text-red-700 border-red-200',     label: 'Unread' },
-    read:    { cls: 'bg-gray-100 text-gray-600 border-gray-200', label: 'Read' },
+    unread:  { cls: 'bg-red-50 text-red-700 border-red-200',      label: 'Unread' },
+    read:    { cls: 'bg-gray-100 text-gray-600 border-gray-200',  label: 'Read' },
     replied: { cls: 'bg-green-50 text-green-700 border-green-200', label: 'Replied' },
   };
   const { cls, label } = map[status];
-  return <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${cls}`}>{label}</span>;
+  return (
+    <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${cls}`}>{label}</span>
+  );
 }
 
 /* ── Single message card ── */
@@ -30,11 +32,10 @@ function MessageCard({ msg }: { msg: ContactMessage }) {
   const [expanded, setExpanded] = useState(false);
   const [reply, setReply] = useState('');
   const [showReplyBox, setShowReplyBox] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState(false);
 
   const [markRead] = useMarkContactReadMutation();
   const [replyContact, { isLoading: sending }] = useReplyContactMutation();
-  const [deleteContact] = useDeleteContactMutation();
+  const [deleteContact, { isLoading: deleting }] = useDeleteContactMutation();
 
   const handleExpand = async () => {
     setExpanded(!expanded);
@@ -56,26 +57,20 @@ function MessageCard({ msg }: { msg: ContactMessage }) {
   };
 
   const handleDelete = async () => {
-    if (!deleteConfirm) {
-      // First click — show inline confirmation, no browser dialog
-      setDeleteConfirm(true);
-      toast('Click Delete again to confirm removal.', { icon: '⚠️', duration: 3000 });
-      setTimeout(() => setDeleteConfirm(false), 4000);
-      return;
-    }
     try {
       await deleteContact(msg._id).unwrap();
       toast.success('Message deleted.');
-    } catch {
-      toast.error('Failed to delete.');
+    } catch (err: any) {
+      toast.error(err?.data?.message || 'Failed to delete.');
     }
-    setDeleteConfirm(false);
   };
 
   return (
-    <div className={`bg-white rounded-2xl border shadow-sm transition-all ${
-      msg.status === 'unread' ? 'border-red-200' : 'border-gray-100'
-    }`}>
+    <div
+      className={`bg-white rounded-2xl border shadow-sm transition-all ${
+        msg.status === 'unread' ? 'border-red-200' : 'border-gray-100'
+      }`}
+    >
       {/* Header row */}
       <div
         className="flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-gray-50 rounded-2xl transition-all"
@@ -98,9 +93,15 @@ function MessageCard({ msg }: { msg: ContactMessage }) {
           </p>
           <StatusBadge status={msg.status} />
           <p className="hidden md:block text-xs text-gray-400">
-            {new Date(msg.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            {new Date(msg.createdAt).toLocaleDateString('en-US', {
+              month: 'short', day: 'numeric', year: 'numeric',
+            })}
           </p>
-          {expanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+          {expanded ? (
+            <ChevronUp className="w-4 h-4 text-gray-400" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-gray-400" />
+          )}
         </div>
       </div>
 
@@ -116,7 +117,9 @@ function MessageCard({ msg }: { msg: ContactMessage }) {
           {/* Message */}
           <div>
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Message</p>
-            <p className="text-sm text-gray-700 bg-gray-50 rounded-xl p-4 leading-relaxed whitespace-pre-wrap">{msg.message}</p>
+            <p className="text-sm text-gray-700 bg-gray-50 rounded-xl p-4 leading-relaxed whitespace-pre-wrap">
+              {msg.message}
+            </p>
           </div>
 
           {/* Previous reply */}
@@ -143,17 +146,19 @@ function MessageCard({ msg }: { msg: ContactMessage }) {
               <Mail className="w-3.5 h-3.5" />
               {msg.adminReply ? 'Send Another Reply' : 'Reply by Email'}
             </button>
+
             <button
               onClick={(e) => { e.stopPropagation(); handleDelete(); }}
-              className={`flex items-center gap-2 px-4 py-2 border text-xs font-bold rounded-xl transition-all ${
-                deleteConfirm
-                  ? 'bg-red-600 text-white border-red-600 hover:bg-red-700'
-                  : 'bg-white border-red-200 text-red-600 hover:bg-red-50'
-              }`}
+              disabled={deleting}
+              className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-600 text-xs font-bold rounded-xl hover:bg-red-50 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <Trash2 className="w-3.5 h-3.5" />
-              {deleteConfirm ? 'Confirm Delete?' : 'Delete'}
+              {deleting ? (
+                <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Deleting...</>
+              ) : (
+                <><Trash2 className="w-3.5 h-3.5" /> Delete</>
+              )}
             </button>
+
             {msg.status === 'read' && (
               <div className="flex items-center gap-1.5 text-xs text-gray-400">
                 <CheckCircle2 className="w-3.5 h-3.5" /> Marked as read
@@ -166,7 +171,8 @@ function MessageCard({ msg }: { msg: ContactMessage }) {
             <div className="flex flex-col gap-3 p-4 bg-gray-50 rounded-xl border border-gray-200">
               <div className="flex items-center gap-2 text-xs text-gray-600 font-medium">
                 <Mail className="w-3.5 h-3.5" />
-                Replying to: <span className="font-bold text-black">{msg.email}</span>
+                Replying to:{' '}
+                <span className="font-bold text-black">{msg.email}</span>
               </div>
               <textarea
                 rows={4}
@@ -202,15 +208,17 @@ function MessageCard({ msg }: { msg: ContactMessage }) {
   );
 }
 
-/* ══════════════════════════════════════════════════════
+/* ══════════════════════════════════════════════════════════
    PAGE
-══════════════════════════════════════════════════════ */
+══════════════════════════════════════════════════════════ */
 export default function AdminQueriesPage() {
   const [filter, setFilter] = useState<'all' | 'unread' | 'read' | 'replied'>('all');
-  const { data: messages = [], isLoading, refetch } = useGetContactMessagesQuery();
+  const { data: messages = [], isLoading, refetch, isFetching } = useGetContactMessagesQuery(
+    undefined,
+    { refetchOnMountOrArgChange: true },
+  );
 
   const filtered = filter === 'all' ? messages : messages.filter((m) => m.status === filter);
-
   const unreadCount = messages.filter((m) => m.status === 'unread').length;
 
   return (
@@ -232,19 +240,25 @@ export default function AdminQueriesPage() {
         </div>
         <button
           onClick={() => refetch()}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all"
+          disabled={isFetching}
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all disabled:opacity-60"
         >
-          <RefreshCw className="w-4 h-4" /> Refresh
+          {isFetching ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <RefreshCw className="w-4 h-4" />
+          )}
+          Refresh
         </button>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Total', value: messages.length, color: 'text-gray-900' },
-          { label: 'Unread', value: messages.filter(m => m.status === 'unread').length, color: 'text-red-600' },
-          { label: 'Read', value: messages.filter(m => m.status === 'read').length, color: 'text-gray-600' },
-          { label: 'Replied', value: messages.filter(m => m.status === 'replied').length, color: 'text-green-600' },
+          { label: 'Total',   value: messages.length, color: 'text-gray-900' },
+          { label: 'Unread',  value: messages.filter((m) => m.status === 'unread').length,  color: 'text-red-600' },
+          { label: 'Read',    value: messages.filter((m) => m.status === 'read').length,    color: 'text-gray-600' },
+          { label: 'Replied', value: messages.filter((m) => m.status === 'replied').length, color: 'text-green-600' },
         ].map(({ label, value, color }) => (
           <div key={label} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
             <p className="text-xs text-gray-500 font-medium">{label}</p>
@@ -260,7 +274,9 @@ export default function AdminQueriesPage() {
             key={f}
             onClick={() => setFilter(f)}
             className={`px-4 py-2 rounded-xl text-xs font-bold capitalize transition-all ${
-              filter === f ? 'bg-black text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+              filter === f
+                ? 'bg-black text-white'
+                : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
             }`}
           >
             {f}

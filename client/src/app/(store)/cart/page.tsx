@@ -31,6 +31,7 @@ export default function CartPage() {
   const [promoInput, setPromoInput] = useState('');
   const [promoLoading, setPromoLoading] = useState(false);
   const [promoError, setPromoError] = useState('');
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
 
   /* ── Totals ── */
   const currencySubtotal = items.reduce((acc, item) => {
@@ -87,12 +88,15 @@ export default function CartPage() {
     toast('Coupon removed', { icon: '🗑️' });
   };
 
-  const handleGoToCheckout = () => {
+  const handleGoToCheckout = async () => {
     if (!isAuthenticated) {
       toast.error('Please log in first.');
       router.push('/login');
       return;
     }
+    setCheckoutLoading(true);
+    // Small delay to show the spinner before navigation — next/navigation push is synchronous
+    await new Promise((r) => setTimeout(r, 300));
     router.push('/checkout');
   };
 
@@ -255,9 +259,14 @@ export default function CartPage() {
 
               <button
                 onClick={handleGoToCheckout}
-                className="w-full bg-black hover:bg-gray-800 text-white font-bold py-4 rounded-full text-sm flex items-center justify-center gap-2 transition-colors"
+                disabled={checkoutLoading || items.length === 0}
+                className="w-full bg-black hover:bg-gray-800 text-white font-bold py-4 rounded-full text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
               >
-                Go to Checkout <ArrowRight className="w-4 h-4" />
+                {checkoutLoading ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Redirecting...</>
+                ) : (
+                  <>Go to Checkout <ArrowRight className="w-4 h-4" /></>
+                )}
               </button>
             </div>
           </div>

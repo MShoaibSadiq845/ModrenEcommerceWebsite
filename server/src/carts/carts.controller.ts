@@ -1,4 +1,8 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Inject } from '@nestjs/common';
+import {
+  Controller, Get, Post, Put, Delete,
+  Body, Param, UseGuards, Inject,
+  HttpCode, HttpStatus,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { CartsService } from './carts.service';
 import { AddCartItemDto } from './dto/cart-item.dto';
@@ -13,11 +17,13 @@ export class CartsController {
   ) {}
 
   @Get()
+  @HttpCode(HttpStatus.OK)
   async getCart(@GetUser('_id') userId: string) {
     return this.cartsService.getCart(userId);
   }
 
   @Post()
+  @HttpCode(HttpStatus.CREATED)
   async addToCart(
     @GetUser('_id') userId: string,
     @Body() dto: AddCartItemDto,
@@ -26,6 +32,7 @@ export class CartsController {
   }
 
   @Put(':itemId')
+  @HttpCode(HttpStatus.OK)
   async updateCartItem(
     @GetUser('_id') userId: string,
     @Param('itemId') itemId: string,
@@ -35,6 +42,7 @@ export class CartsController {
   }
 
   @Delete(':itemId')
+  @HttpCode(HttpStatus.OK)
   async removeCartItem(
     @GetUser('_id') userId: string,
     @Param('itemId') itemId: string,
@@ -43,6 +51,7 @@ export class CartsController {
   }
 
   @Delete()
+  @HttpCode(HttpStatus.OK)
   async clearCart(@GetUser('_id') userId: string) {
     return this.cartsService.clearCart(userId);
   }

@@ -20,6 +20,7 @@ import {
 export default function AdminDashboardPage() {
   const { data: metrics, isLoading } = useGetAdminMetricsQuery(undefined, {
     pollingInterval: 10000,
+    refetchOnMountOrArgChange: true,
   });
 
   const [mounted, setMounted] = React.useState(false);
@@ -76,8 +77,8 @@ export default function AdminDashboardPage() {
           </div>
           <div className="flex items-baseline justify-between">
             <span className="text-3xl font-bold text-gray-900">{totalOrders}</span>
-            <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-md">
-              +12.5%
+            <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
+              All Time
             </span>
           </div>
         </div>

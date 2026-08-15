@@ -11,7 +11,10 @@ import {
 } from '@/store/services/usersApi';
 import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton';
 import { PageLoader } from '@/components/ui/PageLoader';
-import { Award, Trash2, Shield, UserCheck, User as UserIcon, Crown, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  Award, Trash2, Shield, UserCheck, User as UserIcon,
+  Crown, ChevronLeft, ChevronRight, Loader2,
+} from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 const ROLE_STYLES: Record<string, { label: string; bg: string; text: string; icon: React.ReactNode }> = {
@@ -42,31 +45,43 @@ export default function AdminUsersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const limit = 20;
 
-  const { data, isLoading, isFetching } = useGetAllUsersQuery({ page: currentPage, limit });
+  const { data, isLoading, isFetching } = useGetAllUsersQuery(
+    { page: currentPage, limit },
+    { refetchOnMountOrArgChange: true },
+  );
   const users = data?.users || [];
   const pagination = data?.pagination;
 
   const [updateRole] = useUpdateUserRoleMutation();
   const [deleteUser] = useDeleteUserMutation();
 
+  // Per-row loading trackers
+  const [updatingRoleId, setUpdatingRoleId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const handleRoleChange = async (id: string, role: string) => {
+    setUpdatingRoleId(id);
     try {
       await updateRole({ id, role }).unwrap();
       toast.success('User role updated successfully');
     } catch (err: any) {
       toast.error(err?.data?.message || 'Failed to update role');
+    } finally {
+      setUpdatingRoleId(null);
     }
   };
 
   const handleDelete = async (id: string) => {
+    setDeletingId(id);
     try {
       await deleteUser(id).unwrap();
       toast.success('User deleted successfully');
       setConfirmDelete(null);
     } catch (err: any) {
       toast.error(err?.data?.message || 'Failed to delete user');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -82,18 +97,12 @@ export default function AdminUsersPage() {
 
   if (isLoading && !users.length) return <PageLoader message="Loading users..." />;
 
-  // Generate page numbers for pagination
   const getPageNumbers = () => {
     if (!pagination) return [];
     const pages: (number | '...')[] = [];
     const { totalPages } = pagination;
-    
     for (let i = 1; i <= totalPages; i++) {
-      if (
-        i === 1 ||
-        i === totalPages ||
-        (i >= currentPage - 1 && i <= currentPage + 1)
-      ) {
+      if (i === 1 || i === totalPages || (i >= currentPage - 1 && i <= currentPage + 1)) {
         pages.push(i);
       } else if (pages[pages.length - 1] !== '...') {
         pages.push('...');
@@ -108,7 +117,9 @@ export default function AdminUsersPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
           <p className="text-xs text-gray-400 font-['Open_Sans']">
-            {pagination ? `Showing ${((currentPage - 1) * limit) + 1}–${Math.min(currentPage * limit, pagination.total)} of ${pagination.total} users` : 'Manage user accounts, roles, and loyalty points'}
+            {pagination
+              ? `Showing ${(currentPage - 1) * limit + 1}–${Math.min(currentPage * limit, pagination.total)} of ${pagination.total} users`
+              : 'Manage user accounts, roles, and loyalty points'}
           </p>
         </div>
         <div className="text-xs bg-purple-50 border border-purple-200 text-purple-700 px-4 py-2 rounded-xl font-bold w-fit flex items-center gap-2">
@@ -152,24 +163,23 @@ export default function AdminUsersPage() {
                 {users.map((u: any) => {
                   const roleStyle = ROLE_STYLES[u.role] || ROLE_STYLES['User'];
                   const isSelf = u._id === currentUser?.id;
+                  const isUpdatingRole = updatingRoleId === u._id;
+                  const isCurrentlyDeleting = deletingId === u._id;
+
                   return (
                     <tr key={u._id} className="hover:bg-gray-50 transition-all">
                       <td className="py-4">
                         <div className="flex items-center gap-3">
-                          {/* Avatar — real photo or coloured initial */}
                           <div className="relative w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-gray-200">
                             {u.avatar ? (
-                              <Image
-                                src={u.avatar}
-                                alt={u.name || ''}
-                                fill
-                                className="object-cover"
-                              />
+                              <Image src={u.avatar} alt={u.name || ''} fill className="object-cover" />
                             ) : (
-                              <div className={`w-full h-full flex items-center justify-center font-bold text-sm text-white
+                              <div
+                                className={`w-full h-full flex items-center justify-center font-bold text-sm text-white
                                 ${['bg-blue-500','bg-green-500','bg-purple-500','bg-amber-500','bg-red-500','bg-indigo-500'][
                                   (u.name || '').charCodeAt(0) % 6
-                                ]}`}>
+                                ]}`}
+                              >
                                 {(u.name || '?').charAt(0).toUpperCase()}
                               </div>
                             )}
@@ -185,19 +195,27 @@ export default function AdminUsersPage() {
                       <td className="py-4 text-gray-500">{u.email}</td>
                       <td className="py-4">
                         {isSelf ? (
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold ${roleStyle.bg} ${roleStyle.text}`}>
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold ${roleStyle.bg} ${roleStyle.text}`}
+                          >
                             {roleStyle.icon} {u.role}
                           </span>
                         ) : (
-                          <select
-                            value={u.role}
-                            onChange={(e) => handleRoleChange(u._id, e.target.value)}
-                            className="bg-gray-100 border border-transparent rounded-xl px-2.5 py-1.5 text-xs font-bold outline-none focus:border-black focus:bg-white transition-all"
-                          >
-                            <option value="User">User</option>
-                            <option value="Admin">Admin</option>
-                            <option value="Super Admin">Super Admin</option>
-                          </select>
+                          <div className="relative">
+                            <select
+                              value={u.role}
+                              onChange={(e) => handleRoleChange(u._id, e.target.value)}
+                              disabled={isUpdatingRole}
+                              className="bg-gray-100 border border-transparent rounded-xl px-2.5 py-1.5 text-xs font-bold outline-none focus:border-black focus:bg-white transition-all disabled:opacity-60 disabled:cursor-not-allowed pr-7"
+                            >
+                              <option value="User">User</option>
+                              <option value="Admin">Admin</option>
+                              <option value="Super Admin">Super Admin</option>
+                            </select>
+                            {isUpdatingRole && (
+                              <Loader2 className="w-3 h-3 animate-spin absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                            )}
+                          </div>
                         )}
                       </td>
                       <td className="py-4 text-center">
@@ -212,10 +230,15 @@ export default function AdminUsersPage() {
                         {!isSelf && (
                           <button
                             onClick={() => setConfirmDelete(u._id)}
-                            className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-all"
+                            disabled={isCurrentlyDeleting}
+                            className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                             title="Delete user"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            {isCurrentlyDeleting ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
                           </button>
                         )}
                       </td>
@@ -231,7 +254,7 @@ export default function AdminUsersPage() {
             <div className="flex items-center justify-between border-t border-gray-200 pt-6 mt-2">
               <button
                 disabled={!pagination.hasPrevPage || isFetching}
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
                 className="flex items-center gap-1.5 px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-black hover:text-white hover:border-black transition-all"
               >
                 <ChevronLeft className="w-4 h-4" /> Previous
@@ -240,29 +263,25 @@ export default function AdminUsersPage() {
               <div className="flex items-center gap-1">
                 {getPageNumbers().map((page, idx) =>
                   page === '...' ? (
-                    <span key={`ellipsis-${idx}`} className="px-2 text-gray-400">
-                      ...
-                    </span>
+                    <span key={`ellipsis-${idx}`} className="px-2 text-gray-400">...</span>
                   ) : (
                     <button
                       key={page}
                       onClick={() => setCurrentPage(page as number)}
                       disabled={isFetching}
                       className={`w-9 h-9 rounded-lg text-sm font-medium transition-all disabled:opacity-60 ${
-                        currentPage === page
-                          ? 'bg-black text-white'
-                          : 'hover:bg-gray-100 text-gray-700'
+                        currentPage === page ? 'bg-black text-white' : 'hover:bg-gray-100 text-gray-700'
                       }`}
                     >
                       {page}
                     </button>
-                  )
+                  ),
                 )}
               </div>
 
               <button
                 disabled={!pagination.hasNextPage || isFetching}
-                onClick={() => setCurrentPage(prev => Math.min(pagination.totalPages, prev + 1))}
+                onClick={() => setCurrentPage((prev) => Math.min(pagination.totalPages, prev + 1))}
                 className="flex items-center gap-1.5 px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-black hover:text-white hover:border-black transition-all"
               >
                 Next <ChevronRight className="w-4 h-4" />
@@ -288,15 +307,21 @@ export default function AdminUsersPage() {
             <div className="flex gap-3">
               <button
                 onClick={() => setConfirmDelete(null)}
-                className="flex-1 py-3 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50 transition-all"
+                disabled={deletingId === confirmDelete}
+                className="flex-1 py-3 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50 transition-all disabled:opacity-60"
               >
                 Cancel
               </button>
               <button
                 onClick={() => handleDelete(confirmDelete)}
-                className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all"
+                disabled={deletingId === confirmDelete}
+                className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Delete User
+                {deletingId === confirmDelete ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Deleting...</>
+                ) : (
+                  'Delete User'
+                )}
               </button>
             </div>
           </div>
